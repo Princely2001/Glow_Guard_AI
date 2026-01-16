@@ -6,13 +6,13 @@ import '../models/test_models.dart';
 import '../widgets/home_widgets.dart';
 import '../widgets/common_widgets.dart';
 
-import 'test_screen.dart';
+//import 'test_screen.dart';
 import 'instructions_screen.dart';
 import 'result_history.dart';
 import 'lab_submission_screen.dart';
 import 'feedback_screen.dart';
 import 'public_database_screen.dart';
-import 'result_screen.dart';
+//import 'result_screen.dart';
 
 // ✅ add this (change path to your actual LoginScreen file location)
 import '../User/login_screen.dart';
@@ -65,7 +65,7 @@ class HomeScreen extends StatelessWidget {
                 PrimaryActionCard(
                   onStart: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const StartTestScreen()),
+                    //MaterialPageRoute(builder: (_) => const StartTestScreen()),
                   ),
                   onInstructions: () => Navigator.push(
                     context,
@@ -94,7 +94,7 @@ class HomeScreen extends StatelessWidget {
                       icon: Icons.qr_code_scanner,
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const StartTestScreen()),
+                        //MaterialPageRoute(builder: (_) => const StartTestScreen()),
                       ),
                     ),
                     QuickActionTile(
@@ -244,7 +244,7 @@ class HomeScreen extends StatelessWidget {
                             result: r,
                             onTap: () => Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => ResultScreen(result: r)),
+                              //MaterialPageRoute(builder: (_) => ResultScreen(result: r)),
                             ),
                           ),
                         ),
@@ -257,7 +257,7 @@ class HomeScreen extends StatelessWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const StartTestScreen()),
+          //MaterialPageRoute(builder: (_) => const StartTestScreen()),
         ),
         icon: const Icon(Icons.qr_code_scanner),
         label: const Text('Start Test'),

@@ -4,7 +4,7 @@ import '../models/results_store.dart';
 import '../models/test_models.dart';
 import '../widgets/common_widgets.dart';
 
-import 'result_screen.dart';
+
 
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
@@ -29,7 +29,7 @@ class HistoryScreen extends StatelessWidget {
                 result: r,
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => ResultScreen(result: r)),
+                  //MaterialPageRoute(builder: (_) => ResultScreen(result: r)),
                 ),
               );
             },

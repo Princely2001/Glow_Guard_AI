@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 import 'user_store.dart';
 import 'find_expert_tab.dart';
 import 'my_requests_screen.dart';
-import 'research_tab.dart';
+import '../User/research_detail_screen.dart';
 import 'chatbot_tab.dart';
+import 'research_detail_screen.dart';
 
 /// ✅ More attractive + animative User Home (no extra packages)
 class UserHomeTab extends StatefulWidget {
@@ -181,7 +182,7 @@ class _UserHomeTabState extends State<UserHomeTab>
                                   subtitle: "Chemicals & labels",
                                   onTap: () => Navigator.push(
                                     context,
-                                    MaterialPageRoute(builder: (_) => const ResearchTab()),
+                                    MaterialPageRoute(builder: (_) => const ResearchDetailScreen( title: '', subtitle: '',)),
                                   ),
                                 ),
                                 _ActionTile(
@@ -212,7 +213,7 @@ class _UserHomeTabState extends State<UserHomeTab>
                                     icon: Icons.warning_amber_rounded,
                                     onTap: () => Navigator.push(
                                       context,
-                                      MaterialPageRoute(builder: (_) => const ResearchTab()),
+                                      MaterialPageRoute(builder: (_) => const ResearchDetailScreen( title: '', subtitle: '',)),
                                     ),
                                   ),
                                   _LearnCard(
@@ -221,7 +222,7 @@ class _UserHomeTabState extends State<UserHomeTab>
                                     icon: Icons.spa_outlined,
                                     onTap: () => Navigator.push(
                                       context,
-                                      MaterialPageRoute(builder: (_) => const ResearchTab()),
+                                      MaterialPageRoute(builder: (_) => const ResearchDetailScreen( title: '', subtitle: '',)),
                                     ),
                                   ),
                                   _LearnCard(
@@ -230,7 +231,7 @@ class _UserHomeTabState extends State<UserHomeTab>
                                     icon: Icons.health_and_safety_outlined,
                                     onTap: () => Navigator.push(
                                       context,
-                                      MaterialPageRoute(builder: (_) => const ResearchTab()),
+                                      MaterialPageRoute(builder: (_) => const ResearchDetailScreen( title: '', subtitle: '',)),
                                     ),
                                   ),
                                 ].map((w) => Padding(padding: const EdgeInsets.only(right: 12), child: w)).toList(),
