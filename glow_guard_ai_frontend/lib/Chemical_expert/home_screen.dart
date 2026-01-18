@@ -6,9 +6,8 @@ import '../models/test_models.dart';
 import '../widgets/home_widgets.dart';
 import '../widgets/common_widgets.dart';
 
-//import 'test_screen.dart';
+import 'test_screen.dart';
 import 'instructions_screen.dart';
-import 'result_history.dart';
 import 'lab_submission_screen.dart';
 import 'feedback_screen.dart';
 import 'public_database_screen.dart';
@@ -65,7 +64,7 @@ class HomeScreen extends StatelessWidget {
                 PrimaryActionCard(
                   onStart: () => Navigator.push(
                     context,
-                    //MaterialPageRoute(builder: (_) => const StartTestScreen()),
+                    MaterialPageRoute(builder: (_) => const StartTestScreen()),
                   ),
                   onInstructions: () => Navigator.push(
                     context,
@@ -94,7 +93,7 @@ class HomeScreen extends StatelessWidget {
                       icon: Icons.qr_code_scanner,
                       onTap: () => Navigator.push(
                         context,
-                        //MaterialPageRoute(builder: (_) => const StartTestScreen()),
+                        MaterialPageRoute(builder: (_) => const StartTestScreen()),
                       ),
                     ),
                     QuickActionTile(
@@ -106,15 +105,7 @@ class HomeScreen extends StatelessWidget {
                         MaterialPageRoute(builder: (_) => const InstructionsScreen()),
                       ),
                     ),
-                    QuickActionTile(
-                      title: 'History',
-                      subtitle: 'Saved results',
-                      icon: Icons.history,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const HistoryScreen()),
-                      ),
-                    ),
+
                     QuickActionTile(
                       title: 'Lab Referral',
                       subtitle: 'Submit for testing',
@@ -204,7 +195,7 @@ class HomeScreen extends StatelessWidget {
                     TextButton(
                       onPressed: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const HistoryScreen()),
+                        MaterialPageRoute(builder: (_) => const PublicDatabaseScreen()),
                       ),
                       child: const Text('View all'),
                     ),
@@ -244,7 +235,7 @@ class HomeScreen extends StatelessWidget {
                             result: r,
                             onTap: () => Navigator.push(
                               context,
-                              //MaterialPageRoute(builder: (_) => ResultScreen(result: r)),
+                              MaterialPageRoute(builder: (_) => PublicDatabaseScreen()),
                             ),
                           ),
                         ),
@@ -257,7 +248,7 @@ class HomeScreen extends StatelessWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.push(
           context,
-          //MaterialPageRoute(builder: (_) => const StartTestScreen()),
+          MaterialPageRoute(builder: (_) => const StartTestScreen()),
         ),
         icon: const Icon(Icons.qr_code_scanner),
         label: const Text('Start Test'),
