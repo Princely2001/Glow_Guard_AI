@@ -5,6 +5,10 @@
         android:label="glowguard_app"
         android:icon="@mipmap/ic_launcher">
 
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
+
         <activity
             android:name="com.example.glowguard_app.MainActivity"
             android:exported="true"
