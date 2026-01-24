@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+// ✅ Import the generated options file
+import 'firebase_options.dart';
 import 'User/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(); // Android reads google-services.json
+
+  // ✅ Initialize with explicit options (Fixes "Firebase object required" error)
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   runApp(const GlowGuardApp());
 }
 

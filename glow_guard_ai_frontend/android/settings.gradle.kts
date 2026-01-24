@@ -31,7 +31,7 @@ plugins {
 
 dependencyResolutionManagement {
     // Change the mode here:
-    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT) 
     repositories {
         google()
         mavenCentral()

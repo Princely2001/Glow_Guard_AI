@@ -1,12 +1,16 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
+// ✅ Firebase
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'user_store.dart';
 import 'find_expert_tab.dart';
-import 'my_requests_screen.dart';
-import '../User/research_detail_screen.dart';
+import 'View_Test_Results.dart';
+import 'research_tab.dart';
 import 'chatbot_tab.dart';
-import 'research_detail_screen.dart';
+import 'profile_tab.dart';
 
 /// ✅ More attractive + animative User Home (no extra packages)
 class UserHomeTab extends StatefulWidget {
@@ -16,8 +20,7 @@ class UserHomeTab extends StatefulWidget {
   State<UserHomeTab> createState() => _UserHomeTabState();
 }
 
-class _UserHomeTabState extends State<UserHomeTab>
-    with SingleTickerProviderStateMixin {
+class _UserHomeTabState extends State<UserHomeTab> with SingleTickerProviderStateMixin {
   late final AnimationController _c;
   late final Animation<double> _fade;
   late final Animation<Offset> _slide;
@@ -45,10 +48,17 @@ class _UserHomeTabState extends State<UserHomeTab>
     return Scaffold(
       body: Stack(
         children: [
-          // ---------- Background ----------
           const _SoftGradientBg(),
-          Positioned(top: -120, left: -90, child: _AnimatedBlob(color: Color(0xFF009688), size: 280, phase: 0.0)),
-          Positioned(bottom: -150, right: -110, child: _AnimatedBlob(color: Color(0xFFFF9800), size: 340, phase: 1.1)),
+          Positioned(
+            top: -120,
+            left: -90,
+            child: _AnimatedBlob(color: const Color(0xFF009688), size: 280, phase: 0.0),
+          ),
+          Positioned(
+            bottom: -150,
+            right: -110,
+            child: _AnimatedBlob(color: const Color(0xFFFF9800), size: 340, phase: 1.1),
+          ),
 
           SafeArea(
             child: CustomScrollView(
@@ -61,7 +71,7 @@ class _UserHomeTabState extends State<UserHomeTab>
                   title: const Text("GlowGuard AI"),
                   actions: [
                     IconButton(
-                      tooltip: "My Requests",
+                      tooltip: "View Test Results",
                       icon: const Icon(Icons.history),
                       onPressed: () => Navigator.push(
                         context,
@@ -82,7 +92,16 @@ class _UserHomeTabState extends State<UserHomeTab>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // ---------- Hero ----------
+                            // ✅ Profile Header
+                            _UserProfileHeader(
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const ProfileTab()),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+
+                            // ✅ Hero
                             _HeroCard(
                               onFindExpert: () => Navigator.push(
                                 context,
@@ -96,10 +115,10 @@ class _UserHomeTabState extends State<UserHomeTab>
 
                             const SizedBox(height: 14),
 
-                            // ---------- Stats row ----------
-                            ValueListenableBuilder(
+                            // ✅ Stats
+                            ValueListenableBuilder<List<UserTestRequest>>(
                               valueListenable: userRequestsStore,
-                              builder: (context, List<UserTestRequest> reqs, _) {
+                              builder: (context, reqs, _) {
                                 final total = reqs.length;
                                 final completed =
                                     reqs.where((r) => r.status == RequestStatus.completed).length;
@@ -138,10 +157,11 @@ class _UserHomeTabState extends State<UserHomeTab>
 
                             const SizedBox(height: 18),
 
-                            // ---------- Quick Actions ----------
+                            // ✅ Quick Actions
                             Row(
                               children: [
-                                Text("Quick Actions", style: Theme.of(context).textTheme.titleMedium),
+                                Text("Quick Actions",
+                                    style: Theme.of(context).textTheme.titleMedium),
                                 const Spacer(),
                                 _PillTag(text: "USER", color: cs.primary),
                               ],
@@ -169,7 +189,7 @@ class _UserHomeTabState extends State<UserHomeTab>
                                 ),
                                 _ActionTile(
                                   icon: Icons.history,
-                                  title: "My Requests",
+                                  title: "View Test Results",
                                   subtitle: "Track results",
                                   onTap: () => Navigator.push(
                                     context,
@@ -182,7 +202,7 @@ class _UserHomeTabState extends State<UserHomeTab>
                                   subtitle: "Chemicals & labels",
                                   onTap: () => Navigator.push(
                                     context,
-                                    MaterialPageRoute(builder: (_) => const ResearchDetailScreen( title: '', subtitle: '',)),
+                                    MaterialPageRoute(builder: (_) => const ResearchTab()),
                                   ),
                                 ),
                                 _ActionTile(
@@ -199,9 +219,10 @@ class _UserHomeTabState extends State<UserHomeTab>
 
                             const SizedBox(height: 18),
 
-                            // ---------- Learn strip (horizontal) ----------
+                            // ✅ Learn
                             Text("Learn Faster", style: Theme.of(context).textTheme.titleMedium),
                             const SizedBox(height: 10),
+
                             SizedBox(
                               height: 118,
                               child: ListView(
@@ -213,7 +234,7 @@ class _UserHomeTabState extends State<UserHomeTab>
                                     icon: Icons.warning_amber_rounded,
                                     onTap: () => Navigator.push(
                                       context,
-                                      MaterialPageRoute(builder: (_) => const ResearchDetailScreen( title: '', subtitle: '',)),
+                                      MaterialPageRoute(builder: (_) => const ResearchTab()),
                                     ),
                                   ),
                                   _LearnCard(
@@ -222,7 +243,7 @@ class _UserHomeTabState extends State<UserHomeTab>
                                     icon: Icons.spa_outlined,
                                     onTap: () => Navigator.push(
                                       context,
-                                      MaterialPageRoute(builder: (_) => const ResearchDetailScreen( title: '', subtitle: '',)),
+                                      MaterialPageRoute(builder: (_) => const ResearchTab()),
                                     ),
                                   ),
                                   _LearnCard(
@@ -231,19 +252,25 @@ class _UserHomeTabState extends State<UserHomeTab>
                                     icon: Icons.health_and_safety_outlined,
                                     onTap: () => Navigator.push(
                                       context,
-                                      MaterialPageRoute(builder: (_) => const ResearchDetailScreen( title: '', subtitle: '',)),
+                                      MaterialPageRoute(builder: (_) => const ResearchTab()),
                                     ),
                                   ),
-                                ].map((w) => Padding(padding: const EdgeInsets.only(right: 12), child: w)).toList(),
+                                ]
+                                    .map((w) => Padding(
+                                  padding: const EdgeInsets.only(right: 12),
+                                  child: w,
+                                ))
+                                    .toList(),
                               ),
                             ),
 
                             const SizedBox(height: 18),
 
-                            // ---------- Recent Requests ----------
+                            // ✅ Recent Requests
                             Row(
                               children: [
-                                Text("Recent Requests", style: Theme.of(context).textTheme.titleMedium),
+                                Text("Recent Requests",
+                                    style: Theme.of(context).textTheme.titleMedium),
                                 const Spacer(),
                                 TextButton(
                                   onPressed: () => Navigator.push(
@@ -256,13 +283,14 @@ class _UserHomeTabState extends State<UserHomeTab>
                             ),
                             const SizedBox(height: 8),
 
-                            ValueListenableBuilder(
+                            ValueListenableBuilder<List<UserTestRequest>>(
                               valueListenable: userRequestsStore,
-                              builder: (context, List<UserTestRequest> list, _) {
+                              builder: (context, list, _) {
                                 if (list.isEmpty) {
                                   return _EmptyStateCard(
                                     title: "No requests yet",
-                                    subtitle: "Tap “Find Expert” to request your first chemical test.",
+                                    subtitle:
+                                    "Tap “Find Expert” to request your first chemical test.",
                                     buttonText: "Find Expert",
                                     onPressed: () => Navigator.push(
                                       context,
@@ -289,7 +317,7 @@ class _UserHomeTabState extends State<UserHomeTab>
 
                             const SizedBox(height: 8),
 
-                            // ---------- Footer tip ----------
+                            // ✅ Tip
                             Container(
                               padding: const EdgeInsets.all(14),
                               decoration: BoxDecoration(
@@ -314,7 +342,6 @@ class _UserHomeTabState extends State<UserHomeTab>
                                 ],
                               ),
                             ),
-
                             const SizedBox(height: 12),
                           ],
                         ),
@@ -336,6 +363,176 @@ class _UserHomeTabState extends State<UserHomeTab>
         icon: const Icon(Icons.search),
         label: const Text("Find Expert"),
       ),
+    );
+  }
+}
+
+/// ✅ Profile Header Widget (Firestore users/{uid})
+class _UserProfileHeader extends StatelessWidget {
+  final VoidCallback onTap;
+  const _UserProfileHeader({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    if (uid == null) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest.withOpacity(0.75),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: cs.outlineVariant),
+        ),
+        child: const Text("Not logged in"),
+      );
+    }
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('users').doc(uid).snapshots(),
+      builder: (context, snap) {
+        final data = snap.data?.data() ?? {};
+        final name = (data['name'] ?? 'User').toString();
+        final userId = (data['userId'] ?? '').toString();
+        final photoUrl = (data['photoUrl'] ?? '').toString(); // optional
+
+        return InkWell(
+          borderRadius: BorderRadius.circular(26),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(26),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  cs.primaryContainer.withOpacity(0.85),
+                  cs.secondaryContainer.withOpacity(0.75),
+                  cs.surface.withOpacity(0.70),
+                ],
+              ),
+              border: Border.all(color: cs.outlineVariant.withOpacity(0.85)),
+              boxShadow: [
+                BoxShadow(
+                  blurRadius: 28,
+                  offset: const Offset(0, 14),
+                  color: Colors.black.withOpacity(0.08),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                // Avatar + ring
+                Container(
+                  padding: const EdgeInsets.all(2.5),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [
+                        cs.primary.withOpacity(0.9),
+                        cs.secondary.withOpacity(0.7),
+                      ],
+                    ),
+                  ),
+                  child: CircleAvatar(
+                    radius: 26,
+                    backgroundColor: cs.surface,
+                    backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
+                    child: photoUrl.isEmpty
+                        ? Icon(Icons.person_rounded, color: cs.primary, size: 28)
+                        : null,
+                  ),
+                ),
+
+                const SizedBox(width: 14),
+
+                // Name + id + small chip
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: cs.primary.withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: cs.primary.withOpacity(0.18)),
+                            ),
+                            child: Text(
+                              "USER",
+                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                color: cs.primary,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        userId.isEmpty ? "Tap to view your profile" : "ID: $userId",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // mini row: hint + arrow (better than a lone chevron)
+                      Row(
+                        children: [
+                          Icon(Icons.manage_accounts_outlined, size: 18, color: cs.onSurfaceVariant),
+                          const SizedBox(width: 6),
+                          Text(
+                            "View & edit profile",
+                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              color: cs.onSurfaceVariant,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                // Trailing button
+                Container(
+                  height: 42,
+                  width: 42,
+                  decoration: BoxDecoration(
+                    color: cs.surface.withOpacity(0.70),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: cs.outlineVariant.withOpacity(0.8)),
+                  ),
+                  child: Icon(Icons.arrow_forward_ios_rounded, size: 18, color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -398,10 +595,7 @@ class _HeroCard extends StatelessWidget {
   final VoidCallback onFindExpert;
   final VoidCallback onChatbot;
 
-  const _HeroCard({
-    required this.onFindExpert,
-    required this.onChatbot,
-  });
+  const _HeroCard({required this.onFindExpert, required this.onChatbot});
 
   @override
   Widget build(BuildContext context) {
@@ -410,9 +604,7 @@ class _HeroCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [cs.primaryContainer, cs.secondaryContainer],
-        ),
+        gradient: LinearGradient(colors: [cs.primaryContainer, cs.secondaryContainer]),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: cs.outlineVariant),
         boxShadow: [
@@ -425,7 +617,6 @@ class _HeroCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Animated icon badge
           TweenAnimationBuilder<double>(
             tween: Tween(begin: 0, end: 1),
             duration: const Duration(milliseconds: 1400),
@@ -460,9 +651,7 @@ class _HeroCard extends StatelessWidget {
               );
             },
           ),
-
           const SizedBox(width: 12),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -471,13 +660,11 @@ class _HeroCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   "Request chemical tests from experts and learn safe ingredients.",
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: cs.onSurfaceVariant),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 12),
-
                 Row(
                   children: [
                     Expanded(
@@ -508,7 +695,6 @@ class _StatChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final int value;
-
   const _StatChip({required this.icon, required this.label, required this.value});
 
   @override
@@ -545,10 +731,8 @@ class _StatChip extends StatelessWidget {
                   duration: const Duration(milliseconds: 700),
                   curve: Curves.easeOutCubic,
                   builder: (context, v, _) {
-                    return Text(
-                      "${v.round()}",
-                      style: Theme.of(context).textTheme.titleMedium,
-                    );
+                    return Text("${v.round()}",
+                        style: Theme.of(context).textTheme.titleMedium);
                   },
                 ),
               ],
@@ -647,10 +831,9 @@ class _ActionTileState extends State<_ActionTile> {
               const SizedBox(height: 4),
               Text(
                 widget.subtitle,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: cs.onSurfaceVariant),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -723,10 +906,9 @@ class _LearnCardState extends State<_LearnCard> {
                     const SizedBox(height: 4),
                     Text(
                       widget.subtitle,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: cs.onSurfaceVariant),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -740,6 +922,12 @@ class _LearnCardState extends State<_LearnCard> {
   }
 }
 
+String _safeEnumLabel(Object? v) {
+  if (v == null) return "-";
+  final s = v.toString();
+  return s.contains('.') ? s.split('.').last : s;
+}
+
 class _RequestCard extends StatelessWidget {
   final UserTestRequest r;
   const _RequestCard({required this.r});
@@ -748,11 +936,11 @@ class _RequestCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    final statusColor = switch (r.status) {
-      RequestStatus.pending => cs.secondary,
-      RequestStatus.inProgress => cs.primary,
-      RequestStatus.completed => cs.tertiary,
-    };
+    final statusColor = (r.status == RequestStatus.pending)
+        ? cs.secondary
+        : (r.status == RequestStatus.inProgress)
+        ? cs.primary
+        : cs.tertiary;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -779,16 +967,15 @@ class _RequestCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "${r.productName} • ${testTypeLabel(r.testType)}",
+                  "${r.productName} • ${_safeEnumLabel(r.testType)}",
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  "Expert: ${r.expertName} • ${r.status.name}",
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: cs.onSurfaceVariant),
+                  "Expert: ${r.expertName} • ${_safeEnumLabel(r.status)}",
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -820,7 +1007,12 @@ class _EmptyStateCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [cs.surfaceContainerHighest, cs.surfaceContainerHighest.withOpacity(0.7)]),
+        gradient: LinearGradient(
+          colors: [
+            cs.surfaceContainerHighest,
+            cs.surfaceContainerHighest.withOpacity(0.7),
+          ],
+        ),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: cs.outlineVariant),
       ),
@@ -836,10 +1028,9 @@ class _EmptyStateCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: cs.onSurfaceVariant),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 FilledButton(onPressed: onPressed, child: Text(buttonText)),

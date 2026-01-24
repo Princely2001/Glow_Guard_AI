@@ -1,6 +1,6 @@
 {
-    "name": "glow_guard_ai_frontend",
-    "short_name": "glow_guard_ai_frontend",
+    "name": "glowguard_app",
+    "short_name": "glowguard_app",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

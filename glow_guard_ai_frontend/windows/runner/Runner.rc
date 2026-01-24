@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "glow_guard_ai_frontend" "\0"
+            VALUE "FileDescription", "glowguard_app" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "glow_guard_ai_frontend" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "glow_guard_ai_frontend.exe" "\0"
-            VALUE "ProductName", "glow_guard_ai_frontend" "\0"
+            VALUE "InternalName", "glowguard_app" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2025 com.example. All rights reserved." "\0"
+            VALUE "OriginalFilename", "glowguard_app.exe" "\0"
+            VALUE "ProductName", "glowguard_app" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

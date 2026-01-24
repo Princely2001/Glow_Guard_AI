@@ -6,13 +6,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.glow_guard_ai_frontend"
+    namespace = "com.example.glowguard_app"
 
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
-
+ 
     defaultConfig {
-        applicationId = "com.example.glow_guard_ai_frontend"
+        applicationId = "com.example.glowguard_app"
 
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion

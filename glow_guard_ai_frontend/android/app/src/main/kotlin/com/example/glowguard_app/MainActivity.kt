@@ -1,4 +1,4 @@
-package com.example.glow_guard_ai_frontend
+package com.example.glowguard_app
 
 import io.flutter.embedding.android.FlutterActivity
 

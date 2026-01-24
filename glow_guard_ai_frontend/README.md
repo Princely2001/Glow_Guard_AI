@@ -1,4 +1,4 @@
-# glow_guard_ai_frontend
+# glowguard_app
 
 A new Flutter project.
 

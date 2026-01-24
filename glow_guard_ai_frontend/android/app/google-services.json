@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "984238239157",
-    "project_id": "glowguard-7a00f",
-    "storage_bucket": "glowguard-7a00f.firebasestorage.app"
+    "project_number": "403753103671",
+    "project_id": "glowguard-160b8",
+    "storage_bucket": "glowguard-160b8.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:984238239157:android:dfd888d06ef726539bbdfc",
+        "mobilesdk_app_id": "1:403753103671:android:effd069eddefc98be32ab2",
         "android_client_info": {
-          "package_name": "com.example.glow_guard_ai_frontend"
+          "package_name": "com.example.glowguard_app"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDy05kT49aFNMNqC73nc5RnUIKgPB8ZIrI"
+          "current_key": "AIzaSyApo3Q_YqNn21qQxQ90oLTa0ONL3LDewFI"
         }
       ],
       "services": {
