@@ -11,10 +11,20 @@ class MlPrediction {
   final double confidence; // 0..1
   final List<double> probs;
 
+  // ✅ Added: clarity/uncertainty metrics
+  final bool isUnclear;
+  final int bestIndex;
+  final int secondBestIndex;
+  final double margin; // bestProb - secondProb
+
   const MlPrediction({
     required this.label,
     required this.confidence,
     required this.probs,
+    required this.isUnclear,
+    required this.bestIndex,
+    required this.secondBestIndex,
+    required this.margin,
   });
 }
 
@@ -29,6 +39,10 @@ class IngredientClassifier {
   // UI preview size (bigger than model input)
   static const int previewSize = 448;
 
+  // ✅ Unclear prediction thresholds (tune these)
+  static const double unclearConfidenceThreshold = 0.60; // if best prob < 0.60 -> unclear
+  static const double unclearMarginThreshold = 0.15;      // if top1-top2 < 0.15 -> unclear
+
   Interpreter? _interpreter;
   List<String> _labels = const [];
 
@@ -36,7 +50,7 @@ class IngredientClassifier {
 
   Future<void> load({int threads = 2}) async {
     _labels = (await rootBundle.loadString(labelsAsset))
-        .split('\n')
+        .split(RegExp(r'\r?\n'))
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .toList();
@@ -47,6 +61,26 @@ class IngredientClassifier {
 
     final options = InterpreterOptions()..threads = threads;
     _interpreter = await Interpreter.fromAsset(modelAsset, options: options);
+    _interpreter!.allocateTensors();
+
+    // Optional debug info
+    final inTensor = _interpreter!.getInputTensor(0);
+    final outTensor = _interpreter!.getOutputTensor(0);
+
+    // You can leave these prints in debug builds
+    // ignore: avoid_print
+    print('TFLite input: shape=${inTensor.shape} type=${inTensor.type}');
+    // ignore: avoid_print
+    print('TFLite output: shape=${outTensor.shape} type=${outTensor.type}');
+    // ignore: avoid_print
+    print('Labels (${_labels.length}): $_labels');
+
+    // Warn (not crash) if labels mismatch model classes
+    final outLen = outTensor.shape.isNotEmpty ? outTensor.shape.last : _labels.length;
+    if (outLen != _labels.length) {
+      // ignore: avoid_print
+      print('⚠️ Warning: Model outputs $outLen classes but labels has ${_labels.length} lines.');
+    }
   }
 
   void dispose() {
@@ -99,23 +133,49 @@ class IngredientClassifier {
     // (x / 127.5) - 1.0  => [-1, 1]
     final input = _imageToMobileNetV2Input(merged);
 
-    final output = List.generate(1, (_) => List.filled(_labels.length, 0.0));
+    // ✅ Allocate output based on model tensor (robust)
+    final outShape = interpreter.getOutputTensor(0).shape; // e.g. [1, 4]
+    final outLen = outShape.isNotEmpty ? outShape.last : _labels.length;
+
+    final output = List.generate(1, (_) => List.filled(outLen, 0.0));
     interpreter.run(input, output);
 
     final raw = output[0].map((e) => e.toDouble()).toList();
     final probs = _ensureProbabilities(raw);
 
+    // Find best and second-best
     int bestIdx = 0;
+    int secondIdx = 0;
     double best = probs[0];
+    double second = double.negativeInfinity;
+
     for (int i = 1; i < probs.length; i++) {
-      if (probs[i] > best) {
-        best = probs[i];
+      final v = probs[i];
+      if (v > best) {
+        second = best;
+        secondIdx = bestIdx;
+        best = v;
         bestIdx = i;
+      } else if (v > second) {
+        second = v;
+        secondIdx = i;
       }
     }
 
+    final margin = (best - second).isFinite ? (best - second) : 0.0;
+    final isUnclear = (best < unclearConfidenceThreshold) || (margin < unclearMarginThreshold);
+
     final label = bestIdx < _labels.length ? _labels[bestIdx] : 'Unknown';
-    return MlPrediction(label: label, confidence: best, probs: probs);
+
+    return MlPrediction(
+      label: label,
+      confidence: best,
+      probs: probs,
+      isUnclear: isUnclear,
+      bestIndex: bestIdx,
+      secondBestIndex: secondIdx,
+      margin: margin,
+    );
   }
 
   // ----------------- helpers -----------------
@@ -131,6 +191,7 @@ class IngredientClassifier {
     final left = img.copyResize(b, width: halfW, height: halfH, interpolation: img.Interpolation.linear);
     final right = img.copyResize(a, width: halfW, height: halfH, interpolation: img.Interpolation.linear);
 
+    // Note: canvas is 224x224; left/right are 112x224
     final canvas = img.Image(width: inputSize, height: inputSize);
     img.compositeImage(canvas, left, dstX: 0, dstY: 0);
     img.compositeImage(canvas, right, dstX: halfW, dstY: 0);
@@ -144,20 +205,19 @@ class IngredientClassifier {
     return img.bakeOrientation(decoded);
   }
 
-  /// ✅ image package v4+ pixel safe conversion
   /// Produces [1,224,224,3] doubles in RGB order, normalized to [-1,1]
   List<List<List<List<double>>>> _imageToMobileNetV2Input(img.Image image224) {
     final input = List.generate(
       1,
-      (_) => List.generate(
+          (_) => List.generate(
         inputSize,
-        (_) => List.generate(inputSize, (_) => List.filled(3, 0.0)),
+            (_) => List.generate(inputSize, (_) => List.filled(3, 0.0)),
       ),
     );
 
     for (int y = 0; y < inputSize; y++) {
       for (int x = 0; x < inputSize; x++) {
-        final p = image224.getPixel(x, y); // Pixel (not int)
+        final p = image224.getPixel(x, y);
 
         final r = (p.r.toDouble() / 127.5) - 1.0;
         final g = (p.g.toDouble() / 127.5) - 1.0;
@@ -175,7 +235,10 @@ class IngredientClassifier {
     final sum = raw.fold(0.0, (a, b) => a + b);
     final in01 = raw.every((v) => v >= 0.0 && v <= 1.0);
 
+    // If looks like probabilities already
     if (in01 && sum > 0.98 && sum < 1.02) return raw;
+
+    // Else treat as logits
     return _softmax(raw);
   }
 

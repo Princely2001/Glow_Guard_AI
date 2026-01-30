@@ -16,7 +16,6 @@ import '../services/Chemical_expert/chemical_test_private_service.dart';
 
 class StartTestScreen extends StatefulWidget {
   final String? requestedUserId;
-  // Pass appointment ID if available
   final String? appointmentId;
 
   const StartTestScreen({
@@ -32,7 +31,6 @@ class StartTestScreen extends StatefulWidget {
 class _StartTestScreenState extends State<StartTestScreen> {
   final _picker = ImagePicker();
 
-  // ✅ Initialize the Service
   final ChemicalTestPrivateService _storageService = ChemicalTestPrivateService();
 
   TestType _type = TestType.mercury;
@@ -136,15 +134,23 @@ class _StartTestScreenState extends State<StartTestScreen> {
         after: _after!,
       );
 
-      // Save local result for history (optional)
       final now = DateTime.now();
+      final isSafe = pred.label.toLowerCase().trim() == 'safe';
+
+      // ⚠️ Replace TestOutcome.notDetected with your exact enum if different
+      final mappedOutcome = isSafe
+          ? TestOutcome.notDetected
+          : (pred.isUnclear ? TestOutcome.detected /* or a custom "unclear" if you have */ : TestOutcome.detected);
+
       final localResult = TestResult(
         id: now.millisecondsSinceEpoch.toString(),
         time: now,
         type: _type,
-        outcome: TestOutcome.detected, // Map label to outcome as needed
+        outcome: mappedOutcome,
         confidence: (pred.confidence * 100).round(),
-        note: 'Model: ${pred.label}',
+        note: pred.isUnclear
+            ? 'Model: ${pred.label} (Unclear: low confidence / close classes)'
+            : 'Model: ${pred.label}',
         beforePath: _before!.path,
         afterPath: _after!.path,
       );
@@ -156,7 +162,6 @@ class _StartTestScreenState extends State<StartTestScreen> {
         _lastPrediction = pred;
       });
 
-      // ✅ Open Result Screen with the Save Callback
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -167,7 +172,6 @@ class _StartTestScreenState extends State<StartTestScreen> {
             after: _after!,
             mergedPreviewPng: _mergedPreviewPng,
 
-            // ✅ THE KEY PART: Connects UI Button -> Service Upload
             onSaveToDatabase: () async {
               return await _storageService.saveChemicalTestPrivate(
                 requestedUserId: widget.requestedUserId ?? "unknown_user",
@@ -183,7 +187,6 @@ class _StartTestScreenState extends State<StartTestScreen> {
           ),
         ),
       );
-
     } catch (e) {
       debugPrint('Prediction failed: $e');
       if (!mounted) return;
@@ -286,7 +289,16 @@ class _StartTestScreenState extends State<StartTestScreen> {
                 : const Icon(Icons.auto_awesome),
             label: Text(_busy ? 'Analyzing...' : 'Analyze with ML'),
           ),
-          // ... prediction display logic
+
+          if (_lastPrediction != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Last: ${_lastPrediction!.label} • ${(100 * _lastPrediction!.confidence).toStringAsFixed(1)}%${_lastPrediction!.isUnclear ? ' (Unclear)' : ''}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 6),
+            Text(_prettyProbs(_lastPrediction!), style: Theme.of(context).textTheme.bodySmall),
+          ],
         ],
       ),
     );

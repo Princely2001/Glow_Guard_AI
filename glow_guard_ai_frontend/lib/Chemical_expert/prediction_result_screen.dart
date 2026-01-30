@@ -12,10 +12,7 @@ class PredictionResultScreen extends StatefulWidget {
   final File after;
   final Uint8List? mergedPreviewPng;
 
-  // ✅ CALLBACK: Returns recordId when saved
   final Future<String> Function()? onSaveToDatabase;
-
-  // optional
   final Future<void> Function()? onSendToRequester;
 
   const PredictionResultScreen({
@@ -72,6 +69,9 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
 
   bool get _isSafe => widget.prediction.label.toLowerCase().trim() == 'safe';
 
+  // ✅ If unclear: low confidence OR top classes too close (already computed in MlPrediction)
+  bool get _isUnclear => widget.prediction.isUnclear;
+
   String _prettyProbs(MlPrediction p) {
     final probs = p.probs.map((v) => (v * 100).toStringAsFixed(1)).toList();
     if (probs.length == 4) {
@@ -81,6 +81,17 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
   }
 
   String _testTypeName(TestType t) => t.toString().split('.').last;
+
+  // ✅ Recommended advanced tests when unclear
+  List<String> _advancedTestRecommendations() {
+    // Friendly, non-instructional suggestions
+    return const [
+      'Lab confirmation recommended because the result is uncertain.',
+      'For Hydroquinone / Steroids: HPLC or GC-MS (lab test).',
+      'For Mercury: ICP-MS or AAS (lab test).',
+      'If this is for medical/skin use, ask a qualified professional before using the product.',
+    ];
+  }
 
   Future<void> _handleSend() async {
     if (_sending) return;
@@ -107,7 +118,6 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
     }
   }
 
-  // ✅ SAVE HANDLER
   Future<void> _handleSave() async {
     if (_saving) return;
     setState(() => _saving = true);
@@ -115,7 +125,6 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
     try {
       String recordId = "";
       if (widget.onSaveToDatabase != null) {
-        // Calls the service function passed from TestScreen
         recordId = await widget.onSaveToDatabase!.call();
       } else {
         await Future.delayed(const Duration(milliseconds: 900));
@@ -140,14 +149,28 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
     final cs = Theme.of(context).colorScheme;
     final conf = widget.prediction.confidence.clamp(0.0, 1.0);
 
-    final statusTitle = _isSafe ? 'Looks Safe' : 'Danger Detected';
-    final statusSubtitle = _isSafe
-        ? 'No harmful ingredient strongly detected by the model.'
-        : 'A harmful ingredient pattern was detected. Please avoid use and consult guidance.';
+    // If unclear, we show a separate message (even if label is "Safe")
+    final statusTitle = _isUnclear
+        ? 'Result Unclear'
+        : (_isSafe ? 'Looks Safe' : 'Danger Detected');
 
-    final headerBg = _isSafe ? cs.primaryContainer : cs.errorContainer;
-    final headerFg = _isSafe ? cs.primary : cs.error;
-    final accent = _isSafe ? cs.primary : cs.error;
+    final statusSubtitle = _isUnclear
+        ? 'The model is not confident enough. Please confirm with a more advanced chemical test.'
+        : (_isSafe
+        ? 'No harmful ingredient strongly detected by the model.'
+        : 'A harmful ingredient pattern was detected. Please avoid use and consult guidance.');
+
+    final headerBg = _isUnclear
+        ? cs.secondaryContainer
+        : (_isSafe ? cs.primaryContainer : cs.errorContainer);
+
+    final headerFg = _isUnclear
+        ? cs.secondary
+        : (_isSafe ? cs.primary : cs.error);
+
+    final accent = _isUnclear
+        ? cs.secondary
+        : (_isSafe ? cs.primary : cs.error);
 
     return Scaffold(
       backgroundColor: cs.surface,
@@ -163,12 +186,16 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
-                // ... Header and Confidence UI ...
+                // Main card
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: _isSafe ? cs.outlineVariant : cs.error.withOpacity(0.45)),
+                    border: Border.all(
+                      color: _isUnclear
+                          ? cs.outlineVariant
+                          : (_isSafe ? cs.outlineVariant : cs.error.withOpacity(0.45)),
+                    ),
                     color: cs.surfaceContainerHighest,
                     boxShadow: [
                       BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 18, offset: const Offset(0, 10)),
@@ -184,33 +211,68 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
                             decoration: BoxDecoration(color: headerBg, borderRadius: BorderRadius.circular(999)),
                             child: Text(
                               widget.prediction.label,
-                              style: Theme.of(context).textTheme.labelLarge?.copyWith(color: headerFg, fontWeight: FontWeight.w900),
+                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                color: headerFg,
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 10),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                            decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(999), border: Border.all(color: cs.outlineVariant)),
+                            decoration: BoxDecoration(
+                              color: cs.surface,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: cs.outlineVariant),
+                            ),
                             child: Text(
                               _testTypeName(widget.testType).toUpperCase(),
-                              style: Theme.of(context).textTheme.labelLarge?.copyWith(color: cs.onSurfaceVariant, fontWeight: FontWeight.w700),
+                              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                                color: cs.onSurfaceVariant,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ],
                       ),
+
                       const SizedBox(height: 12),
+
                       Row(
                         children: [
-                          Icon(_isSafe ? Icons.verified_rounded : Icons.warning_rounded, color: accent, size: 26),
+                          Icon(
+                            _isUnclear
+                                ? Icons.help_outline_rounded
+                                : (_isSafe ? Icons.verified_rounded : Icons.warning_rounded),
+                            color: accent,
+                            size: 26,
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
-                            child: Text(statusTitle, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+                            child: Text(
+                              statusTitle,
+                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 6),
-                      Text(statusSubtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+                      Text(
+                        statusSubtitle,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                      ),
+
+                      // ✅ If unclear, show margin info (helpful for debugging / transparency)
+                      if (_isUnclear) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          'Unclear because confidence is low or classes are too close (margin ${(widget.prediction.margin * 100).toStringAsFixed(1)}%).',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                        ),
+                      ],
+
                       const SizedBox(height: 14),
+
                       TweenAnimationBuilder<double>(
                         tween: Tween<double>(begin: 0, end: conf),
                         duration: const Duration(milliseconds: 900),
@@ -223,26 +285,72 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
                                 children: [
                                   Text('Confidence', style: Theme.of(context).textTheme.titleMedium),
                                   const Spacer(),
-                                  Text('${(value * 100).toStringAsFixed(1)}%', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                                  Text(
+                                    '${(value * 100).toStringAsFixed(1)}%',
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                                  ),
                                 ],
                               ),
                               const SizedBox(height: 8),
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(999),
-                                child: LinearProgressIndicator(value: value, minHeight: 12, backgroundColor: cs.outlineVariant.withOpacity(0.55), valueColor: AlwaysStoppedAnimation<Color>(accent)),
+                                child: LinearProgressIndicator(
+                                  value: value,
+                                  minHeight: 12,
+                                  backgroundColor: cs.outlineVariant.withOpacity(0.55),
+                                  valueColor: AlwaysStoppedAnimation<Color>(accent),
+                                ),
                               ),
                             ],
                           );
                         },
                       ),
+
                       const SizedBox(height: 12),
-                      Text(_prettyProbs(widget.prediction), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
+                      Text(
+                        _prettyProbs(widget.prediction),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                      ),
                     ],
                   ),
                 ),
 
-                const SizedBox(height: 14),
+                // ✅ Unclear recommendation block
+                if (_isUnclear) ...[
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: cs.secondaryContainer.withOpacity(0.45),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: cs.outlineVariant),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.science_rounded, color: cs.secondary),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Recommended next step',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        ..._advancedTestRecommendations().map(
+                              (t) => Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Text('• $t', style: Theme.of(context).textTheme.bodyMedium),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
 
+                const SizedBox(height: 14),
                 Text('Combined image used for prediction', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 _MergedPreviewCard(bytes: widget.mergedPreviewPng),
@@ -264,7 +372,9 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: _sending ? null : _handleSend,
-                        icon: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send_rounded),
+                        icon: _sending
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.send_rounded),
                         label: Text(_sending ? 'Sending...' : 'Send to Requester'),
                       ),
                     ),
@@ -272,14 +382,15 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: _saving ? null : _handleSave,
-                        icon: _saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.save_rounded),
+                        icon: _saving
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.save_rounded),
                         label: Text(_saving ? 'Saving...' : 'Save to Database'),
                       ),
                     ),
                   ],
                 ),
 
-                // ... Back buttons ...
                 const SizedBox(height: 12),
                 FilledButton.tonalIcon(
                   onPressed: () => Navigator.pop(context),
@@ -301,7 +412,6 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
   }
 }
 
-// ... _MergedPreviewCard and _ThumbCard classes remain the same ...
 class _MergedPreviewCard extends StatelessWidget {
   final Uint8List? bytes;
   const _MergedPreviewCard({required this.bytes});
@@ -320,7 +430,9 @@ class _MergedPreviewCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         child: Stack(
           children: [
-            bytes == null ? const Center(child: CircularProgressIndicator()) : Image.memory(bytes!, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+            bytes == null
+                ? const Center(child: CircularProgressIndicator())
+                : Image.memory(bytes!, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
             const Positioned(left: 12, top: 12, child: _Pill(text: 'Before')),
             const Positioned(right: 12, top: 12, child: _Pill(text: 'After')),
           ],
@@ -339,7 +451,11 @@ class _ThumbCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Container(
       height: 140,
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: Border.all(color: cs.outlineVariant), color: cs.surfaceContainerHighest),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: cs.outlineVariant),
+        color: cs.surfaceContainerHighest,
+      ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(18),
         child: Stack(
@@ -361,8 +477,14 @@ class _Pill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: Colors.black.withOpacity(0.45), borderRadius: BorderRadius.circular(999)),
-      child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.45),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+      ),
     );
   }
 }
