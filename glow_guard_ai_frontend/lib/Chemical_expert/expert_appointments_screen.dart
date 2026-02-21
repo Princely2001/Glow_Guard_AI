@@ -1,8 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
+import 'test_screen.dart';
+
 
 class ExpertAppointmentsScreen extends StatelessWidget {
   const ExpertAppointmentsScreen({super.key});
@@ -28,19 +30,16 @@ class ExpertAppointmentsScreen extends StatelessWidget {
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: query.snapshots(),
         builder: (context, snap) {
-          if (snap.hasError) {
-            return Center(child: Text("Error: ${snap.error}"));
-          }
+          if (snap.hasError) return Center(child: Text("Error: ${snap.error}"));
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          // ✅ Make modifiable list to sort
           final docs = List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(
             snap.data?.docs ?? const [],
           );
 
-          // ✅ Sort locally (no Firestore index needed)
+          // ✅ Sort locally
           docs.sort((a, b) {
             final ad = a.data();
             final bd = b.data();
@@ -75,10 +74,13 @@ class ExpertAppointmentsScreen extends StatelessWidget {
               final slot = (data['slot'] ?? '').toString();
               final status = (data['status'] ?? 'booked').toString();
 
-              final isBooked = status == "booked";
+              final isBooked = status.toLowerCase() == "booked";
 
               return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                future: FirebaseFirestore.instance.collection('users').doc(userId).get(),
+                future: FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(userId)
+                    .get(),
                 builder: (context, userSnap) {
                   final userData = userSnap.data?.data() ?? {};
                   final userName = (userData['name'] ?? 'User').toString();
@@ -114,15 +116,22 @@ class ExpertAppointmentsScreen extends StatelessWidget {
                             height: 44,
                             width: 44,
                             decoration: BoxDecoration(
-                              color: (isBooked ? cs.primary : cs.outlineVariant).withOpacity(0.12),
+                              color: (isBooked ? cs.primary : cs.outlineVariant)
+                                  .withOpacity(0.12),
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: (isBooked ? cs.primary : cs.outlineVariant).withOpacity(0.25),
+                                color: (isBooked
+                                    ? cs.primary
+                                    : cs.outlineVariant)
+                                    .withOpacity(0.25),
                               ),
                             ),
                             child: Icon(
-                              isBooked ? Icons.event_available : Icons.event_busy,
-                              color: isBooked ? cs.primary : cs.onSurfaceVariant,
+                              isBooked
+                                  ? Icons.event_available
+                                  : Icons.event_busy,
+                              color:
+                              isBooked ? cs.primary : cs.onSurfaceVariant,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -131,36 +140,54 @@ class ExpertAppointmentsScreen extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  (dateId.isEmpty || slot.isEmpty) ? "Appointment" : "$dateId • $slot",
-                                  style: const TextStyle(fontWeight: FontWeight.w900),
+                                  (dateId.isEmpty || slot.isEmpty)
+                                      ? "Appointment"
+                                      : "$dateId • $slot",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                  ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  userSnap.connectionState == ConnectionState.waiting ? "Loading user..." : userName,
-                                  style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.w700),
+                                  userSnap.connectionState ==
+                                      ConnectionState.waiting
+                                      ? "Loading user..."
+                                      : userName,
+                                  style: TextStyle(
+                                    color: cs.onSurface,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
                                   userEmail.isEmpty ? "No email" : userEmail,
-                                  style: TextStyle(color: cs.onSurfaceVariant),
+                                  style:
+                                  TextStyle(color: cs.onSurfaceVariant),
                                 ),
                               ],
                             ),
                           ),
                           const SizedBox(width: 10),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
                             decoration: BoxDecoration(
-                              color: (isBooked ? cs.primary : cs.onSurfaceVariant).withOpacity(0.12),
+                              color: (isBooked ? cs.primary : cs.onSurfaceVariant)
+                                  .withOpacity(0.12),
                               borderRadius: BorderRadius.circular(999),
                               border: Border.all(
-                                color: (isBooked ? cs.primary : cs.onSurfaceVariant).withOpacity(0.25),
+                                color: (isBooked
+                                    ? cs.primary
+                                    : cs.onSurfaceVariant)
+                                    .withOpacity(0.25),
                               ),
                             ),
                             child: Text(
                               status,
                               style: TextStyle(
-                                color: isBooked ? cs.primary : cs.onSurfaceVariant,
+                                color: isBooked
+                                    ? cs.primary
+                                    : cs.onSurfaceVariant,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
@@ -179,8 +206,8 @@ class ExpertAppointmentsScreen extends StatelessWidget {
   }
 }
 
-/// ✅ Details screen: shows appointment + user contact
-class ExpertAppointmentDetailsScreen extends StatelessWidget {
+/// ✅ Details screen: appointment + user contact + "Do Chemical Test" button
+class ExpertAppointmentDetailsScreen extends StatefulWidget {
   final String appointmentId;
   final Map<String, dynamic> appointmentData;
 
@@ -198,17 +225,57 @@ class ExpertAppointmentDetailsScreen extends StatelessWidget {
   });
 
   @override
+  State<ExpertAppointmentDetailsScreen> createState() =>
+      _ExpertAppointmentDetailsScreenState();
+}
+
+class _ExpertAppointmentDetailsScreenState
+    extends State<ExpertAppointmentDetailsScreen> {
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _goToStartTestScreen() async {
+    if (_busy) return;
+
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+
+    try {
+      final requestedUserId =
+      (widget.appointmentData['userId'] ?? '').toString();
+
+      // ✅ Correct navigation: StartTestScreen (NOT TestScreen)
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => StartTestScreen(
+            requestedUserId: requestedUserId,
+            appointmentId: widget.appointmentId,
+          ),
+        ),
+      );
+    } catch (e) {
+      setState(() => _error = "Failed to open test screen: $e");
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    final dateId = (appointmentData['dateId'] ?? '').toString();
-    final slot = (appointmentData['slot'] ?? '').toString();
-    final status = (appointmentData['status'] ?? 'booked').toString();
-    final specialty = (appointmentData['expertSpecialty'] ?? '').toString();
+    final dateId = (widget.appointmentData['dateId'] ?? '').toString();
+    final slot = (widget.appointmentData['slot'] ?? '').toString();
+    final status = (widget.appointmentData['status'] ?? 'booked').toString();
+    final specialty =
+    (widget.appointmentData['expertSpecialty'] ?? '').toString();
 
     DateTime? date;
-    if (appointmentData['date'] is Timestamp) {
-      date = (appointmentData['date'] as Timestamp).toDate();
+    if (widget.appointmentData['date'] is Timestamp) {
+      date = (widget.appointmentData['date'] as Timestamp).toDate();
     }
 
     final dateText = (date != null)
@@ -223,7 +290,7 @@ class ExpertAppointmentDetailsScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
-          // ✅ Colorful Header Card
+          // ✅ Header card
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -254,7 +321,8 @@ class ExpertAppointmentDetailsScreen extends StatelessWidget {
                     Expanded(
                       child: Text(
                         "$dateText • $slot",
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        style:
+                        Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w900,
                           color: cs.onPrimaryContainer,
                         ),
@@ -266,7 +334,9 @@ class ExpertAppointmentDetailsScreen extends StatelessWidget {
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    Icon(Icons.info_outline, size: 18, color: cs.onPrimaryContainer.withOpacity(0.85)),
+                    Icon(Icons.info_outline,
+                        size: 18,
+                        color: cs.onPrimaryContainer.withOpacity(0.85)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -283,13 +353,17 @@ class ExpertAppointmentDetailsScreen extends StatelessWidget {
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      Icon(Icons.science_outlined, size: 18, color: cs.onPrimaryContainer.withOpacity(0.85)),
+                      Icon(Icons.science_outlined,
+                          size: 18,
+                          color: cs.onPrimaryContainer.withOpacity(0.85)),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           "Specialty: $specialty",
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: cs.onPrimaryContainer.withOpacity(0.9),
+                          style:
+                          Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color:
+                            cs.onPrimaryContainer.withOpacity(0.9),
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -303,7 +377,7 @@ class ExpertAppointmentDetailsScreen extends StatelessWidget {
 
           const SizedBox(height: 14),
 
-          // ✅ Contact Section Card (more modern surface)
+          // ✅ Contact section
           SectionCard(
             title: "User Contact",
             icon: Icons.person_outline,
@@ -312,19 +386,22 @@ class ExpertAppointmentDetailsScreen extends StatelessWidget {
                 DetailRow(
                   icon: Icons.badge_outlined,
                   label: "Name",
-                  value: userName.isEmpty ? "-" : userName,
+                  value: widget.userName.isEmpty ? "-" : widget.userName,
                 ),
                 const SizedBox(height: 10),
                 DetailRow(
                   icon: Icons.email_outlined,
                   label: "Email",
-                  value: userEmail.isEmpty ? "-" : userEmail,
-                  trailing: userEmail.isEmpty
+                  value: widget.userEmail.isEmpty ? "-" : widget.userEmail,
+                  trailing: widget.userEmail.isEmpty
                       ? null
                       : IconButton.filledTonal(
                     tooltip: "Copy email",
                     onPressed: () async {
-                      await Clipboard.setData(ClipboardData(text: userEmail));
+                      await Clipboard.setData(
+                        ClipboardData(text: widget.userEmail),
+                      );
+                      if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text("Email copied")),
                       );
@@ -336,44 +413,37 @@ class ExpertAppointmentDetailsScreen extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
 
-          // ✅ Tip Card (tinted, not boring grey)
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: cs.secondaryContainer.withOpacity(0.55),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: cs.outlineVariant.withOpacity(0.25)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          // ✅ Button → StartTestScreen
+          SectionCard(
+            title: "Chemical Test",
+            icon: Icons.science_outlined,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: cs.surface.withOpacity(0.7),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: cs.outlineVariant.withOpacity(0.25)),
-                  ),
-                  child: Icon(Icons.lightbulb_outline, color: cs.onSecondaryContainer),
+                FilledButton.icon(
+                  onPressed: _busy ? null : _goToStartTestScreen,
+                  icon: _busy
+                      ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                      : const Icon(Icons.biotech_rounded),
+                  label: Text(_busy ? "Opening..." : "Do Chemical Test"),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    "Tip: Use the email/phone to confirm test details with the user.",
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: cs.onSecondaryContainer.withOpacity(0.95),
-                      height: 1.35,
-                      fontWeight: FontWeight.w600,
-                    ),
+                if (_error != null) ...[
+                  const SizedBox(height: 10),
+                  Text(_error!, style: const TextStyle(color: Colors.red)),
+                ],
+                const SizedBox(height: 6),
+                Text(
+                  "This will open the test screen to upload before/after images, run the AI model, then show the result page.",
+                  style: TextStyle(
+                    color: cs.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
                   ),
                 ),
               ],
@@ -382,28 +452,12 @@ class ExpertAppointmentDetailsScreen extends StatelessWidget {
         ],
       ),
     );
-
-  }
-
-  Widget _detailTile(ColorScheme cs, String title, String value) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withOpacity(0.75),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: cs.outlineVariant),
-      ),
-      child: Row(
-        children: [
-          Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w800))),
-          const SizedBox(width: 10),
-          Flexible(child: Text(value, textAlign: TextAlign.right)),
-        ],
-      ),
-    );
   }
 }
+
+// -----------------------------------------------------------------------------
+// Shared UI components
+// -----------------------------------------------------------------------------
 class SectionCard extends StatelessWidget {
   final String title;
   final IconData icon;

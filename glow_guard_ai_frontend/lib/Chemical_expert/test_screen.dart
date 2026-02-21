@@ -30,7 +30,6 @@ class StartTestScreen extends StatefulWidget {
 
 class _StartTestScreenState extends State<StartTestScreen> {
   final _picker = ImagePicker();
-
   final ChemicalTestPrivateService _storageService = ChemicalTestPrivateService();
 
   TestType _type = TestType.mercury;
@@ -59,9 +58,7 @@ class _StartTestScreenState extends State<StartTestScreen> {
     } catch (e) {
       debugPrint('Model load failed: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Model load failed: $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Model load failed: $e')));
       }
     }
   }
@@ -110,16 +107,12 @@ class _StartTestScreenState extends State<StartTestScreen> {
 
   Future<void> _analyze() async {
     if (_before == null || _after == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add BOTH Before and After photos.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add BOTH Before and After photos.')));
       return;
     }
 
     if (!_modelReady || !_clf.isLoaded) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ML model is not ready.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ML model is not ready.')));
       return;
     }
 
@@ -129,18 +122,13 @@ class _StartTestScreenState extends State<StartTestScreen> {
     });
 
     try {
-      final pred = await _clf.predictMergedBeforeAfter(
-        before: _before!,
-        after: _after!,
-      );
+      final pred = await _clf.predictMergedBeforeAfter(before: _before!, after: _after!);
 
       final now = DateTime.now();
       final isSafe = pred.label.toLowerCase().trim() == 'safe';
-
-      // ⚠️ Replace TestOutcome.notDetected with your exact enum if different
       final mappedOutcome = isSafe
           ? TestOutcome.notDetected
-          : (pred.isUnclear ? TestOutcome.detected /* or a custom "unclear" if you have */ : TestOutcome.detected);
+          : (pred.isUnclear ? TestOutcome.detected : TestOutcome.detected);
 
       final localResult = TestResult(
         id: now.millisecondsSinceEpoch.toString(),
@@ -171,7 +159,6 @@ class _StartTestScreenState extends State<StartTestScreen> {
             before: _before!,
             after: _after!,
             mergedPreviewPng: _mergedPreviewPng,
-
             onSaveToDatabase: () async {
               return await _storageService.saveChemicalTestPrivate(
                 requestedUserId: widget.requestedUserId ?? "unknown_user",
@@ -191,9 +178,7 @@ class _StartTestScreenState extends State<StartTestScreen> {
       debugPrint('Prediction failed: $e');
       if (!mounted) return;
       setState(() => _busy = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -208,10 +193,7 @@ class _StartTestScreenState extends State<StartTestScreen> {
           IconButton(
             tooltip: 'Instructions',
             icon: const Icon(Icons.menu_book_outlined),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const InstructionsScreen()),
-            ),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InstructionsScreen())),
           ),
         ],
       ),
@@ -225,8 +207,7 @@ class _StartTestScreenState extends State<StartTestScreen> {
                 Text('Choose test type', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 10),
                 Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
+                  spacing: 10, runSpacing: 10,
                   children: TestType.values.map((t) {
                     final selected = t == _type;
                     return ChoiceChip(
@@ -239,16 +220,9 @@ class _StartTestScreenState extends State<StartTestScreen> {
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    Icon(
-                      _modelReady ? Icons.check_circle : Icons.hourglass_top,
-                      size: 18,
-                      color: _modelReady ? cs.primary : cs.onSurfaceVariant,
-                    ),
+                    Icon(_modelReady ? Icons.check_circle : Icons.hourglass_top, size: 18, color: _modelReady ? cs.primary : cs.onSurfaceVariant),
                     const SizedBox(width: 8),
-                    Text(
-                      _modelReady ? 'ML model ready' : 'Loading ML model...',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                    ),
+                    Text(_modelReady ? 'ML model ready' : 'Loading ML model...', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
                   ],
                 ),
               ],
@@ -258,35 +232,24 @@ class _StartTestScreenState extends State<StartTestScreen> {
 
           Text('Before photo (LEFT)', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
-          PhotoPickerCard(
-            file: _before,
-            onCamera: () => _pickBefore(ImageSource.camera),
-            onGallery: () => _pickBefore(ImageSource.gallery),
-          ),
+          PhotoPickerCard(file: _before, onCamera: () => _pickBefore(ImageSource.camera), onGallery: () => _pickBefore(ImageSource.gallery)),
           const SizedBox(height: 14),
 
           Text('After photo (RIGHT)', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
-          PhotoPickerCard(
-            file: _after,
-            onCamera: () => _pickAfter(ImageSource.camera),
-            onGallery: () => _pickAfter(ImageSource.gallery),
-          ),
+          PhotoPickerCard(file: _after, onCamera: () => _pickAfter(ImageSource.camera), onGallery: () => _pickAfter(ImageSource.gallery)),
 
           if (_before != null && _after != null) ...[
             const SizedBox(height: 14),
-            Text('Combined image (sent to model)', style: Theme.of(context).textTheme.titleMedium),
+            Text('Combined Preview', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             _MergedPreviewCard(bytes: _mergedPreviewPng),
           ],
 
           const SizedBox(height: 16),
-
           FilledButton.icon(
             onPressed: (_busy || !_modelReady) ? null : _analyze,
-            icon: _busy
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.auto_awesome),
+            icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome),
             label: Text(_busy ? 'Analyzing...' : 'Analyze with ML'),
           ),
 
@@ -296,8 +259,6 @@ class _StartTestScreenState extends State<StartTestScreen> {
               'Last: ${_lastPrediction!.label} • ${(100 * _lastPrediction!.confidence).toStringAsFixed(1)}%${_lastPrediction!.isUnclear ? ' (Unclear)' : ''}',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
-            const SizedBox(height: 6),
-            Text(_prettyProbs(_lastPrediction!), style: Theme.of(context).textTheme.bodySmall),
           ],
         ],
       ),
@@ -305,7 +266,7 @@ class _StartTestScreenState extends State<StartTestScreen> {
   }
 }
 
-// Helper widgets (Internal to this file)
+// ✅ Updated helper for Wide Images in Test Screen
 class _MergedPreviewCard extends StatelessWidget {
   final Uint8List? bytes;
   const _MergedPreviewCard({required this.bytes});
@@ -314,7 +275,9 @@ class _MergedPreviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Container(
-      height: 220,
+      // Height 180 to keep approx 2:1 ratio suitable for 224x448
+      height: 180,
+      width: double.infinity,
       decoration: BoxDecoration(
         color: cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(18),
@@ -324,7 +287,7 @@ class _MergedPreviewCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         child: bytes == null
             ? const Center(child: CircularProgressIndicator())
-            : Image.memory(bytes!, fit: BoxFit.cover, width: double.infinity, height: double.infinity),
+            : Image.memory(bytes!, fit: BoxFit.contain), // Use contain to show full width
       ),
     );
   }

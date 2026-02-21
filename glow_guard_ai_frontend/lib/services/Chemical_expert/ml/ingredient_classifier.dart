@@ -29,19 +29,25 @@ class MlPrediction {
 }
 
 class IngredientClassifier {
-  static const String modelAsset = 'assets/ml/best_ingredient_model.tflite';
+  //  Updated Model Asset Name
+  static const String modelAsset = 'assets/ml/glowguard_efficientnet.tflite';
   static const String labelsAsset = 'assets/ml/labels.txt';
 
-  static const int inputSize = 224;
-  static const int halfW = 112;
-  static const int halfH = 224;
+  //  Updated Input Dimensions for Single-Stream (Side-by-Side)
+  // The model expects Height: 224, Width: 448
+  static const int inputHeight = 224;
+  static const int inputWidth = 448;
 
-  // UI preview size (bigger than model input)
-  static const int previewSize = 448;
+  // Each individual image (Before/After) is resized to 224x224 before merging
+  static const int singleImageSize = 224;
 
-  // ✅ Unclear prediction thresholds (tune these)
-  static const double unclearConfidenceThreshold = 0.60; // if best prob < 0.60 -> unclear
-  static const double unclearMarginThreshold = 0.15;      // if top1-top2 < 0.15 -> unclear
+  // UI preview size (2:1 aspect ratio)
+  static const int previewWidth = 448;
+  static const int previewHeight = 224;
+
+  //  Unclear prediction thresholds
+  static const double unclearConfidenceThreshold = 0.60;
+  static const double unclearMarginThreshold = 0.15;
 
   Interpreter? _interpreter;
   List<String> _labels = const [];
@@ -63,24 +69,13 @@ class IngredientClassifier {
     _interpreter = await Interpreter.fromAsset(modelAsset, options: options);
     _interpreter!.allocateTensors();
 
-    // Optional debug info
     final inTensor = _interpreter!.getInputTensor(0);
     final outTensor = _interpreter!.getOutputTensor(0);
 
-    // You can leave these prints in debug builds
     // ignore: avoid_print
-    print('TFLite input: shape=${inTensor.shape} type=${inTensor.type}');
-    // ignore: avoid_print
-    print('TFLite output: shape=${outTensor.shape} type=${outTensor.type}');
+    print('TFLite input: shape=${inTensor.shape} type=${inTensor.type}'); // Should be [1, 224, 448, 3]
     // ignore: avoid_print
     print('Labels (${_labels.length}): $_labels');
-
-    // Warn (not crash) if labels mismatch model classes
-    final outLen = outTensor.shape.isNotEmpty ? outTensor.shape.last : _labels.length;
-    if (outLen != _labels.length) {
-      // ignore: avoid_print
-      print('⚠️ Warning: Model outputs $outLen classes but labels has ${_labels.length} lines.');
-    }
   }
 
   void dispose() {
@@ -88,38 +83,17 @@ class IngredientClassifier {
     _interpreter = null;
   }
 
-  /// ✅ Builds a merged preview PNG (Before LEFT, After RIGHT) for displaying on screen
+  ///  Builds a merged preview PNG (Before LEFT, After RIGHT)
   Future<Uint8List> buildMergedPreviewPng({
     required File before,
     required File after,
-    int size = previewSize,
   }) async {
-    final merged = await _mergeSideBySideSquare(before: before, after: after, size: size);
+    // Merge at high quality for UI
+    final merged = await _mergeSideBySide(before: before, after: after, targetHeight: previewHeight, targetWidth: previewWidth);
     return Uint8List.fromList(img.encodePng(merged));
   }
 
-  Future<img.Image> _mergeSideBySideSquare({
-    required File before,
-    required File after,
-    required int size,
-  }) async {
-    final b = _decodeAndFixOrientation(await before.readAsBytes());
-    final a = _decodeAndFixOrientation(await after.readAsBytes());
-
-    final half = (size / 2).round();
-
-    final left = img.copyResize(b, width: half, height: size, interpolation: img.Interpolation.linear);
-    final right = img.copyResize(a, width: half, height: size, interpolation: img.Interpolation.linear);
-
-    final canvas = img.Image(width: size, height: size);
-    img.compositeImage(canvas, left, dstX: 0, dstY: 0);
-    img.compositeImage(canvas, right, dstX: half, dstY: 0);
-
-    return canvas;
-  }
-
-  /// ✅ Predict using merged 224x224 image:
-  /// LEFT = Before (112x224), RIGHT = After (112x224)
+  /// Predict using merged 224x448 image
   Future<MlPrediction> predictMergedBeforeAfter({
     required File before,
     required File after,
@@ -127,19 +101,26 @@ class IngredientClassifier {
     final interpreter = _interpreter;
     if (interpreter == null) throw StateError('Model not loaded. Call load() first.');
 
-    final merged = await _mergeSideBySide224(before: before, after: after);
+    // 1. Prepare Image: 224x448
+    final merged = await _mergeSideBySide(
+        before: before,
+        after: after,
+        targetHeight: inputHeight,
+        targetWidth: inputWidth
+    );
 
-    // ✅ Same as tf.keras.applications.mobilenet_v2.preprocess_input:
-    // (x / 127.5) - 1.0  => [-1, 1]
-    final input = _imageToMobileNetV2Input(merged);
+    // 2. Preprocess: EfficientNet expects [0, 255] float inputs
+    final input = _imageToEfficientNetInput(merged);
 
-    // ✅ Allocate output based on model tensor (robust)
-    final outShape = interpreter.getOutputTensor(0).shape; // e.g. [1, 4]
+    // 3. Allocate Output
+    final outShape = interpreter.getOutputTensor(0).shape;
     final outLen = outShape.isNotEmpty ? outShape.last : _labels.length;
-
     final output = List.generate(1, (_) => List.filled(outLen, 0.0));
+
+    // 4. Run Inference
     interpreter.run(input, output);
 
+    // 5. Process Results
     final raw = output[0].map((e) => e.toDouble()).toList();
     final probs = _ensureProbabilities(raw);
 
@@ -180,21 +161,26 @@ class IngredientClassifier {
 
   // ----------------- helpers -----------------
 
-  Future<img.Image> _mergeSideBySide224({
+  /// Merges two images side-by-side.
+  Future<img.Image> _mergeSideBySide({
     required File before,
     required File after,
+    required int targetHeight,
+    required int targetWidth,
   }) async {
     final b = _decodeAndFixOrientation(await before.readAsBytes());
     final a = _decodeAndFixOrientation(await after.readAsBytes());
 
-    // IMPORTANT: match training (resize only, no crop)
-    final left = img.copyResize(b, width: halfW, height: halfH, interpolation: img.Interpolation.linear);
-    final right = img.copyResize(a, width: halfW, height: halfH, interpolation: img.Interpolation.linear);
+    // Each side takes up half the width
+    final halfWidth = (targetWidth / 2).round();
 
-    // Note: canvas is 224x224; left/right are 112x224
-    final canvas = img.Image(width: inputSize, height: inputSize);
+    // Resize both to fit their half
+    final left = img.copyResize(b, width: halfWidth, height: targetHeight, interpolation: img.Interpolation.linear);
+    final right = img.copyResize(a, width: halfWidth, height: targetHeight, interpolation: img.Interpolation.linear);
+
+    final canvas = img.Image(width: targetWidth, height: targetHeight);
     img.compositeImage(canvas, left, dstX: 0, dstY: 0);
-    img.compositeImage(canvas, right, dstX: halfW, dstY: 0);
+    img.compositeImage(canvas, right, dstX: halfWidth, dstY: 0);
 
     return canvas;
   }
@@ -205,27 +191,24 @@ class IngredientClassifier {
     return img.bakeOrientation(decoded);
   }
 
-  /// Produces [1,224,224,3] doubles in RGB order, normalized to [-1,1]
-  List<List<List<List<double>>>> _imageToMobileNetV2Input(img.Image image224) {
+  ///  EfficientNet Input: [1, 224, 448, 3]
+  List<List<List<List<double>>>> _imageToEfficientNetInput(img.Image imageWide) {
     final input = List.generate(
       1,
           (_) => List.generate(
-        inputSize,
-            (_) => List.generate(inputSize, (_) => List.filled(3, 0.0)),
+        inputHeight,
+            (_) => List.generate(inputWidth, (_) => List.filled(3, 0.0)),
       ),
     );
 
-    for (int y = 0; y < inputSize; y++) {
-      for (int x = 0; x < inputSize; x++) {
-        final p = image224.getPixel(x, y);
+    for (int y = 0; y < inputHeight; y++) {
+      for (int x = 0; x < inputWidth; x++) {
+        final p = imageWide.getPixel(x, y);
 
-        final r = (p.r.toDouble() / 127.5) - 1.0;
-        final g = (p.g.toDouble() / 127.5) - 1.0;
-        final b = (p.b.toDouble() / 127.5) - 1.0;
-
-        input[0][y][x][0] = r;
-        input[0][y][x][1] = g;
-        input[0][y][x][2] = b;
+        // EfficientNet B0 (Keras default) expects 0..255
+        input[0][y][x][0] = p.r.toDouble();
+        input[0][y][x][1] = p.g.toDouble();
+        input[0][y][x][2] = p.b.toDouble();
       }
     }
     return input;
@@ -235,10 +218,7 @@ class IngredientClassifier {
     final sum = raw.fold(0.0, (a, b) => a + b);
     final in01 = raw.every((v) => v >= 0.0 && v <= 1.0);
 
-    // If looks like probabilities already
     if (in01 && sum > 0.98 && sum < 1.02) return raw;
-
-    // Else treat as logits
     return _softmax(raw);
   }
 
