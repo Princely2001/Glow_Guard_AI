@@ -22,6 +22,9 @@ dependencies:
   # ☁ Storage for Before/After images
   firebase_storage: ^12.3.2
 
+  # 🔔 Push Notifications
+  firebase_messaging: 15.2.10
+
   # UI & Utils
   cupertino_icons: ^1.0.8
   intl: ^0.18.1

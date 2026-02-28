@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart'; // ✅ Added import for Push Notifications
 import 'package:intl/intl.dart';
 
 class UserRegisterData {
@@ -27,6 +28,44 @@ class UserRegisterData {
     required this.chemicalExp,
     required this.password,
   });
+}
+
+// ✅ Added NotificationService to handle FCM tokens
+class NotificationService {
+  final FirebaseMessaging _fcm = FirebaseMessaging.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  Future<void> setupFCMToken() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    // Request permission (Required for iOS, recommended for Android 13+)
+    NotificationSettings settings = await _fcm.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      // Get the unique device token
+      String? token = await _fcm.getToken();
+
+      if (token != null) {
+        // Save it to the user's document in Firestore
+        await _db.collection('users').doc(user.uid).set({
+          'fcmToken': token,
+        }, SetOptions(merge: true));
+      }
+
+      // Listen for token refreshes (in case the device assigns a new token later)
+      _fcm.onTokenRefresh.listen((newToken) {
+        _db.collection('users').doc(user.uid).set({
+          'fcmToken': newToken,
+        }, SetOptions(merge: true));
+      });
+    }
+  }
 }
 
 class UserAuthService {
@@ -75,6 +114,9 @@ class UserAuthService {
         "createdAt": FieldValue.serverTimestamp(),
       });
 
+      // ✅ Capture and save FCM token right after successful registration
+      await NotificationService().setupFCMToken();
+
       return uid;
     } on FirebaseAuthException {
       rethrow;
@@ -86,6 +128,7 @@ class UserAuthService {
     }
   }
 }
+
 class UserLoginService {
   final FirebaseAuth _auth;
   final FirebaseFirestore _db;
@@ -127,6 +170,9 @@ class UserLoginService {
           message: 'No user profile found in database for this account.',
         );
       }
+
+      // ✅ Capture and save FCM token right after successful login
+      await NotificationService().setupFCMToken();
 
       return uid;
     } on FirebaseAuthException {

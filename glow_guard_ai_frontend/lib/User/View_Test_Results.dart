@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class MyRequestsScreen extends StatefulWidget {
   const MyRequestsScreen({super.key});
@@ -12,9 +13,9 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
   final _idC = TextEditingController();
   bool _loading = false;
   String? _error;
-  Map<String, dynamic>? _searchResult;
 
   FirebaseFirestore get _db => FirebaseFirestore.instance;
+  final String? _currentUserId = FirebaseAuth.instance.currentUser?.uid;
 
   static const String _collection = 'chemical test private';
 
@@ -24,8 +25,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     super.dispose();
   }
 
-  // ✅ Legacy normalize only (for inputs like: 2026/01/17 11AM -> 2026011711AM)
-  // IMPORTANT: Do NOT apply this to auto Firestore ids (they are case-sensitive)
+  // ✅ Legacy normalize
   String _normalizeLegacyId(String input) {
     return input.trim().toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
   }
@@ -38,7 +38,7 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     final doc = await _db.collection(_collection).doc(id).get();
     if (!doc.exists) return null;
     final data = doc.data() ?? {};
-    data['__docId'] = doc.id; // keep doc id for fallback
+    data['__docId'] = doc.id;
     return data;
   }
 
@@ -57,55 +57,37 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
 
   Future<void> _search() async {
     final raw = _idC.text.trim();
+    if (raw.isEmpty) return;
 
     setState(() {
       _loading = true;
       _error = null;
-      _searchResult = null;
     });
 
-    if (raw.isEmpty) {
-      setState(() {
-        _loading = false;
-        _error = "Please enter a valid Test Result ID.";
-      });
-      return;
-    }
-
     try {
-      // Search candidates: raw first (exact), then recordId raw,
-      // then if legacy-like, also try normalized version.
       final candidates = <String>[raw];
       if (_looksLikeLegacyFormat(raw)) {
         candidates.add(_normalizeLegacyId(raw));
       }
 
-      for (final candidate in candidates) {
-        // 1) exact docId (case-sensitive)
-        final byDoc = await _findByDocId(candidate);
-        if (byDoc != null) {
-          setState(() {
-            _loading = false;
-            _searchResult = byDoc;
-          });
-          return;
-        }
+      Map<String, dynamic>? foundData;
 
-        // 2) recordId field
-        final byRecord = await _findByRecordId(candidate);
-        if (byRecord != null) {
-          setState(() {
-            _loading = false;
-            _searchResult = byRecord;
-          });
-          return;
-        }
+      for (final candidate in candidates) {
+        foundData = await _findByDocId(candidate);
+        if (foundData != null) break;
+
+        foundData = await _findByRecordId(candidate);
+        if (foundData != null) break;
       }
 
-      setState(() {
-        _loading = false;
-        _error = "No report found for ID: $raw";
-      });
+      setState(() => _loading = false);
+
+      if (foundData != null) {
+        _idC.clear();
+        _showReportSheet(foundData);
+      } else {
+        setState(() => _error = "No report found for ID: $raw");
+      }
     } catch (e) {
       setState(() {
         _loading = false;
@@ -114,89 +96,227 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     }
   }
 
+  void _showReportSheet(Map<String, dynamic> data) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.85,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          builder: (_, controller) {
+            return Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  // Drag handle
+                  Container(
+                    width: 40,
+                    height: 5,
+                    margin: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView(
+                      controller: controller,
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      children: [
+                        _ResultReportCard(data: data),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text("My Chemical Tests")),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      backgroundColor: cs.surface,
+      appBar: AppBar(
+        title: const Text("My Lab Results", style: TextStyle(fontWeight: FontWeight.w600)),
+        centerTitle: true,
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+      ),
+      body: Column(
         children: [
-          // 🔎 SEARCH BY ID
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: cs.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: cs.outlineVariant),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("Search by Test Result ID",
-                    style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                Text(
-                  "Enter the ID given by the chemical expert.\n"
-                      "Supports BOTH:\n"
-                      "• New unique IDs (paste exactly)\n"
-                      "• Legacy format (example: 2026/01/17 11AM) — auto-fixed",
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: cs.onSurfaceVariant, height: 1.35),
-                ),
-                const SizedBox(height: 12),
-
-                TextField(
-                  controller: _idC,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) {
-                    if (!_loading) _search();
-                  },
-                  decoration: InputDecoration(
-                    hintText: "Paste Record ID here",
-                    prefixIcon: const Icon(Icons.search),
-                    filled: true,
-                    fillColor: cs.surface,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: _loading ? null : _search,
-                    child: Text(_loading ? "Searching..." : "Find Report"),
-                  ),
-                ),
-
-                if (_error != null) ...[
+          // 🔎 SEARCH SECTION
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHighest.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: cs.outlineVariant.withOpacity(0.5)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Manual Search", style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: cs.errorContainer,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _error!,
-                      style: TextStyle(color: cs.onErrorContainer),
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _idC,
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: (_) {
+                            if (!_loading) _search();
+                          },
+                          decoration: InputDecoration(
+                            hintText: "Paste Record ID",
+                            hintStyle: TextStyle(fontSize: 14, color: cs.onSurfaceVariant),
+                            prefixIcon: const Icon(Icons.search, size: 20),
+                            filled: true,
+                            fillColor: cs.surface,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: cs.outlineVariant),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: cs.outlineVariant),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      SizedBox(
+                        height: 48,
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: _loading ? null : _search,
+                          child: _loading
+                              ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                              : const Text("Find"),
+                        ),
+                      ),
+                    ],
                   ),
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: Text(_error!, style: TextStyle(color: cs.error, fontSize: 12)),
+                    ),
                 ],
+              ),
+            ),
+          ),
 
-                if (_searchResult != null) ...[
-                  const SizedBox(height: 16),
-                  _ResultReportCard(data: _searchResult!),
-                ],
+          const SizedBox(height: 8),
+
+          // 📩 MESSAGES / INBOX HEADER
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Row(
+              children: [
+                Icon(Icons.inbox_outlined, color: cs.primary, size: 22),
+                const SizedBox(width: 8),
+                Text(
+                  "Recent Results",
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                ),
               ],
             ),
+          ),
+
+          // 📬 MESSAGES LIST (REAL-TIME STREAM)
+          Expanded(
+            child: _currentUserId == null
+                ? const Center(child: Text("Please log in to see your results."))
+                : StreamBuilder<QuerySnapshot>(
+              stream: _db
+                  .collection(_collection)
+                  .where('requestedUserId', isEqualTo: _currentUserId)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text("Error: ${snapshot.error}"));
+                }
+
+                var docs = snapshot.data?.docs ?? [];
+
+                if (docs.isEmpty) {
+                  return _buildEmptyState(cs);
+                }
+
+                // Sort in memory to avoid needing a Firestore Composite Index
+                final sortedDocs = docs.toList()..sort((a, b) {
+                  final aData = a.data() as Map<String, dynamic>;
+                  final bData = b.data() as Map<String, dynamic>;
+                  final aTime = aData['createdAt'] as Timestamp?;
+                  final bTime = bData['createdAt'] as Timestamp?;
+                  if (aTime == null || bTime == null) return 0;
+                  return bTime.compareTo(aTime); // Descending
+                });
+
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  itemCount: sortedDocs.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final data = sortedDocs[index].data() as Map<String, dynamic>;
+                    return _MessageTile(
+                      data: data,
+                      onTap: () => _showReportSheet(data),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(ColorScheme cs) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: cs.primaryContainer.withOpacity(0.3),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.mark_email_read_outlined, size: 48, color: cs.primary),
+          ),
+          const SizedBox(height: 16),
+          Text("No results yet", style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Text(
+            "When an expert completes your test,\nthe result will appear here automatically.",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: cs.onSurfaceVariant),
           ),
         ],
       ),
@@ -205,7 +325,109 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
 }
 
 // ---------------------------------------------------------------------------
-// ✅ FULL REPORT CARD (Outcome + Confidence + Images)
+// ✅ MESSAGE TILE (Inbox Style Item)
+// ---------------------------------------------------------------------------
+class _MessageTile extends StatelessWidget {
+  final Map<String, dynamic> data;
+  final VoidCallback onTap;
+
+  const _MessageTile({required this.data, required this.onTap});
+
+  String _formatDate(dynamic ts) {
+    if (ts is Timestamp) {
+      final d = ts.toDate();
+      final hh = d.hour.toString().padLeft(2, '0');
+      final mm = d.minute.toString().padLeft(2, '0');
+      return "${d.month}/${d.day}/${d.year} at $hh:$mm";
+    }
+    return "Recently";
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    final labelRaw = (data['predictionLabel'] ?? data['label'] ?? '').toString();
+    final isSafe = labelRaw.toLowerCase() == 'safe';
+    final testType = (data['testType'] ?? 'Unknown Test').toString();
+    final date = _formatDate(data['createdAt'] ?? data['requestedDateTime']);
+
+    // Styling based on outcome
+    final iconColor = isSafe ? Colors.green : Colors.redAccent;
+    final iconData = isSafe ? Icons.check_circle_outline : Icons.warning_amber_rounded;
+    final bgColor = isSafe ? Colors.green.withOpacity(0.08) : Colors.red.withOpacity(0.08);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerHighest.withOpacity(0.4),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cs.outlineVariant.withOpacity(0.6)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Avatar / Icon
+            Container(
+              height: 48,
+              width: 48,
+              decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
+              child: Icon(iconData, color: iconColor, size: 28),
+            ),
+            const SizedBox(width: 14),
+            // Message Content
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Lab Result Ready",
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      ),
+                      Text(
+                        date,
+                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Test Type: $testType",
+                    style: TextStyle(color: cs.onSurface, fontSize: 13, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    "Outcome: ${labelRaw.isEmpty ? 'Unclear' : labelRaw.toUpperCase()}",
+                    style: TextStyle(
+                      color: isSafe ? Colors.green[700] : Colors.red[700],
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    "Tap to view the full detailed report and images.",
+                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// ✅ FULL REPORT CARD (Untouched data logic from your previous version)
 // ---------------------------------------------------------------------------
 class _ResultReportCard extends StatelessWidget {
   final Map<String, dynamic> data;
@@ -226,7 +448,6 @@ class _ResultReportCard extends StatelessWidget {
     return int.tryParse(v.toString()) ?? 0;
   }
 
-  // Prefer requestedDateTime (your test time), fallback createdAt
   String _formatDate(dynamic requestedDateTime, dynamic createdAt, String createdAtLocal) {
     Timestamp? pickTs(dynamic v) => v is Timestamp ? v : null;
 
@@ -266,31 +487,23 @@ class _ResultReportCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    // recordId fallback to docId
     final recordId = _s(data['recordId']).isNotEmpty ? _s(data['recordId']) : _s(data['__docId']);
-
     final testType = _s(data['testType']);
     final label = _s(data['predictionLabel']).isNotEmpty ? _s(data['predictionLabel']) : _s(data['label']);
     final outcomeRaw = _s(data['outcome']);
     final expertEmail = _s(data['expertEmail']).isNotEmpty ? _s(data['expertEmail']) : "Unknown Expert";
 
-    // confidence supports:
-    // - confidencePercent
-    // - confidence as 0..1
-    // - confidence as 0..100
     final confPercentStored = _toInt(data['confidencePercent']);
     final confidenceRaw = _toDouble(data['confidence']);
     final confPercent = confPercentStored > 0
         ? confPercentStored
         : (confidenceRaw <= 1.0 ? (confidenceRaw * 100).round() : confidenceRaw.round()).clamp(0, 100);
 
-    // outcome fallback
     final labelLower = label.toLowerCase();
     final outcome = outcomeRaw.isNotEmpty
         ? outcomeRaw
         : (labelLower.isEmpty ? 'unclear' : (labelLower == 'safe' ? 'notDetected' : 'detected'));
 
-    // probs (optional)
     final probsRaw = data['probs'];
     final probs = (probsRaw is List) ? probsRaw : const [];
     double toProb(dynamic v) {
@@ -306,7 +519,6 @@ class _ResultReportCard extends StatelessWidget {
     final isSafe = labelLower == 'safe';
     final isUnclear = outcome.toLowerCase().contains('unclear');
 
-    // image urls
     final mergedUrl = _findUrl(['mergedImageUrl', 'mergedUrl', 'merged', 'combinedImageUrl', 'previewUrl']);
     final beforeUrl = _findUrl(['beforeImageUrl', 'beforeUrl', 'before']);
     final afterUrl = _findUrl(['afterImageUrl', 'afterUrl', 'after']);
@@ -487,7 +699,7 @@ class _ResultReportCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// ✅ NETWORK IMAGE WITH ZOOM
+// ✅ NETWORK IMAGE WITH ZOOM (Untouched)
 // ---------------------------------------------------------------------------
 class _NetImageCard extends StatelessWidget {
   final String url;

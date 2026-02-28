@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // ✅ Added for Clipboard (copying ID)
 
 // ✅ Firebase
 import 'package:firebase_auth/firebase_auth.dart';
@@ -69,16 +70,10 @@ class _UserHomeTabState extends State<UserHomeTab> with SingleTickerProviderStat
                   elevation: 0,
                   backgroundColor: Colors.transparent,
                   title: const Text("GlowGuard AI"),
-                  actions: [
-                    IconButton(
-                      tooltip: "View Test Results",
-                      icon: const Icon(Icons.history),
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const MyRequestsScreen()),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
+                  actions: const [
+                    // ✅ Replaced the static icon with the dynamic Notification Badge
+                    _NotificationBadgeIcon(),
+                    SizedBox(width: 6),
                   ],
                 ),
 
@@ -363,6 +358,149 @@ class _UserHomeTabState extends State<UserHomeTab> with SingleTickerProviderStat
         icon: const Icon(Icons.search),
         label: const Text("Find Expert"),
       ),
+    );
+  }
+}
+
+/// -------------------- DYNAMIC NOTIFICATION ICON --------------------
+class _NotificationBadgeIcon extends StatelessWidget {
+  const _NotificationBadgeIcon();
+
+  void _showRecentIdsDialog(BuildContext context, List<QueryDocumentSnapshot> docs) {
+    final cs = Theme.of(context).colorScheme;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text("Lab Results Ready! 🔬"),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Copy your Record ID below and paste it in the search screen to view the full report.",
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final data = docs[index].data() as Map<String, dynamic>;
+                    final recordId = data['recordId']?.toString() ?? docs[index].id;
+                    final testType = data['testType']?.toString() ?? 'Test';
+                    final label = data['predictionLabel']?.toString() ?? 'Result';
+
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        side: BorderSide(color: cs.outlineVariant),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ListTile(
+                        title: Text(recordId, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        subtitle: Text("$testType • $label", style: const TextStyle(fontSize: 12)),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.copy, size: 20),
+                          color: cs.primary,
+                          onPressed: () {
+                            Clipboard.setData(ClipboardData(text: recordId));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("ID Copied! Paste it in the search box.")),
+                            );
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("Close"),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MyRequestsScreen()),
+                );
+              },
+              child: const Text("Go to Search"),
+            )
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
+    // If user is not logged in, just show normal icon
+    if (uid == null) {
+      return IconButton(
+        icon: const Icon(Icons.history),
+        onPressed: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const MyRequestsScreen()),
+        ),
+      );
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      // Listen to chemical test private collection where requestedUserId matches current user
+      stream: FirebaseFirestore.instance
+          .collection('chemical test private')
+          .where('requestedUserId', isEqualTo: uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        var docs = snapshot.data?.docs.toList() ?? [];
+
+        // Sort locally by createdAt so we don't force you to build a complex Firestore Index
+        docs.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+          final aTime = aData['createdAt'] as Timestamp?;
+          final bTime = bData['createdAt'] as Timestamp?;
+          if (aTime == null || bTime == null) return 0;
+          return bTime.compareTo(aTime); // descending (newest first)
+        });
+
+        // Take the 5 most recent results
+        final recentDocs = docs.take(5).toList();
+        final hasResults = recentDocs.isNotEmpty;
+
+        return Badge(
+          isLabelVisible: hasResults,
+          label: Text(recentDocs.length.toString()),
+          child: IconButton(
+            tooltip: "View Test Results",
+            icon: const Icon(Icons.history),
+            onPressed: () {
+              if (hasResults) {
+                // Pop open the dialog to copy IDs
+                _showRecentIdsDialog(context, recentDocs);
+              } else {
+                // If no results, just go straight to the screen
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MyRequestsScreen()),
+                );
+              }
+            },
+          ),
+        );
+      },
     );
   }
 }

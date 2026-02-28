@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'appointment_details_screen.dart';
+import 'payment_gateway_screen.dart'; // ✅ Import the payment gateway
 
 class BookAppointmentScreen extends StatefulWidget {
   final String expertId;
@@ -34,8 +35,8 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  // ----------------- BOOK -----------------
-  Future<void> _book() async {
+  // ----------------- INITIATE PAYMENT & BOOKING -----------------
+  Future<void> _initiateBooking() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       _snack("Not logged in.");
@@ -45,6 +46,30 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
       _snack("Select date and time first.");
       return;
     }
+
+    // ✅ Navigate to Payment Gateway before executing _book()
+    final bool? paymentSuccess = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PaymentGatewayScreen(
+          amount: 1500.0, // Demo consultation fee
+          expertName: widget.expertName,
+        ),
+      ),
+    );
+
+    // If payment returns true, proceed with booking
+    if (paymentSuccess == true) {
+      await _book();
+    } else {
+      _snack("Payment was cancelled or failed.");
+    }
+  }
+
+  // ----------------- BOOK -----------------
+  Future<void> _book() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
     setState(() => _busy = true);
 
@@ -94,6 +119,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
           "date": Timestamp.fromDate(dateMidnight),
           "slot": _selectedSlot,
           "status": "booked",
+          "paymentStatus": "paid", // ✅ Register the payment as paid
           "createdAt": FieldValue.serverTimestamp(),
           "updatedAt": FieldValue.serverTimestamp(),
         });
@@ -565,12 +591,13 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
 
           const SizedBox(height: 12),
 
+          // ✅ Updated to call _initiateBooking instead of _book
           ElevatedButton.icon(
-            onPressed: _busy ? null : _book,
+            onPressed: _busy ? null : _initiateBooking,
             icon: _busy
                 ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.check_circle_outline),
-            label: Text(_busy ? "Please wait..." : "Confirm Booking"),
+                : const Icon(Icons.payment),
+            label: Text(_busy ? "Please wait..." : "Pay & Confirm Booking"),
           ),
 
           const SizedBox(height: 8),

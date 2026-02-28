@@ -8,16 +8,15 @@ import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf_cors_headers/shelf_cors_headers.dart';
 
 void main(List<String> args) async {
-  final port = int.tryParse(Platform.environment['PORT'] ?? '8080') ?? 8080;
-  final apiKey = Platform.environment['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'];
+  final port = int.tryParse(Platform.environment['PORT'] ?? '8081') ?? 8081;
 
-  if (apiKey == null || apiKey.trim().isEmpty) {
-    stderr.writeln(
-      'ERROR: Missing OPENAI_API_KEY env var.\n'
-          'Set it like:\n'
-          '  export OPENAI_API_KEY="sk-..."\n'
-          '  dart run bin/server.dart\n',
-    );
+  // Uses the OPENROUTER_API_KEY environment variable if set.
+  // Otherwise, falls back to your hardcoded key.
+  final apiKey = Platform.environment['OPENROUTER_API_KEY'] ??
+      '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';
+
+  if (apiKey.trim().isEmpty) {
+    stderr.writeln('ERROR: Missing OPENROUTER_API_KEY.');
     exit(1);
   }
 
@@ -35,7 +34,7 @@ void main(List<String> args) async {
       final data = jsonDecode(body) as Map<String, dynamic>;
 
       final message = (data['message'] ?? '').toString().trim();
-      final history = (data['history'] is List) ? (data['history'] as List) : const [];
+      final historyList = (data['history'] is List) ? (data['history'] as List) : const [];
 
       if (message.isEmpty) {
         return Response(400,
@@ -43,7 +42,6 @@ void main(List<String> args) async {
             headers: {HttpHeaders.contentTypeHeader: 'application/json'});
       }
 
-      // System prompt: restrict to cosmetics + ingredient safety.
       final systemPrompt = '''
 You are GlowGuard Assistant, focused ONLY on cosmetics, skincare, bleaching/whitening products, and ingredient safety.
 - Explain ingredients in simple terms (what it is, why used, common risks).
@@ -53,57 +51,64 @@ You are GlowGuard Assistant, focused ONLY on cosmetics, skincare, bleaching/whit
 - Keep answers concise (3–8 bullet points max) and practical.
 ''';
 
-      // Convert incoming history into Responses API "input" messages.
-      // Expected history items: { "role": "user"|"assistant", "content": "..." }
-      final input = <Map<String, dynamic>>[
+      // 1. Prepare messages array for OpenRouter (OpenAI format)
+      final messages = <Map<String, String>>[
         {'role': 'system', 'content': systemPrompt},
       ];
 
-      for (final item in history) {
+      // 2. Add History
+      for (final item in historyList) {
         if (item is Map) {
           final role = (item['role'] ?? '').toString();
           final content = (item['content'] ?? '').toString();
-          if ((role == 'user' || role == 'assistant') && content.trim().isNotEmpty) {
-            input.add({'role': role, 'content': content});
+
+          if (content.trim().isNotEmpty) {
+            messages.add({'role': role, 'content': content});
           }
         }
       }
 
-      input.add({'role': 'user', 'content': message});
+      // Safeguard: Ensure the latest user message is in the array if the frontend
+      // didn't already append it to the history list.
+      if (messages.isEmpty || messages.last['content'] != message) {
+        messages.add({'role': 'user', 'content': message});
+      }
 
-      final openAiResp = await http.post(
-        Uri.parse('https://api.openai.com/v1/responses'),
+      // 3. Send request to OpenRouter API
+      final url = Uri.parse('https://openrouter.ai/api/v1/chat/completions');
+      final response = await http.post(
+        url,
         headers: {
-          HttpHeaders.authorizationHeader: 'Bearer $apiKey',
-          HttpHeaders.contentTypeHeader: 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $apiKey',
+          // Optional OpenRouter headers to identify your app
+          'HTTP-Referer': 'http://localhost:8081',
+          'X-Title': 'GlowGuard Backend',
         },
         body: jsonEncode({
-          // Choose a model available to your account:
-          // If "gpt-5" is not enabled, switch to another model in your dashboard.
-          'model': 'gpt-5',
-          'input': input,
-          // Optional: reduce storage if you want
-          'store': false,
+          // ✅ CORRECTED: Added the ":free" suffix to the model ID
+          'model': 'arcee-ai/trinity-large-preview:free',
+          'messages': messages,
         }),
       );
 
-      if (openAiResp.statusCode < 200 || openAiResp.statusCode >= 300) {
-        return Response(
-          502,
-          body: jsonEncode({
-            'error': 'OpenAI request failed',
-            'status': openAiResp.statusCode,
-            'body': openAiResp.body,
-          }),
-          headers: {HttpHeaders.contentTypeHeader: 'application/json'},
-        );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        print('OpenRouter Error HTTP ${response.statusCode}: ${response.body}');
+        return Response(502,
+            body: jsonEncode({
+              'error': 'Error from AI provider',
+              'details': response.body
+            }),
+            headers: {HttpHeaders.contentTypeHeader: 'application/json'});
       }
 
-      final decoded = jsonDecode(openAiResp.body) as Map<String, dynamic>;
+      // 4. Parse response
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      final choices = decoded['choices'] as List?;
+      final reply = choices?.isNotEmpty == true
+          ? (choices![0]['message']?['content'] ?? '').toString().trim()
+          : '';
 
-      // Responses API provides a convenience field in many SDKs: output_text
-      // In raw JSON, best practice is to extract text from output items.
-      final reply = extractOutputText(decoded).trim();
       if (reply.isEmpty) {
         return Response(
           502,
@@ -117,6 +122,7 @@ You are GlowGuard Assistant, focused ONLY on cosmetics, skincare, bleaching/whit
         headers: {HttpHeaders.contentTypeHeader: 'application/json'},
       );
     } catch (e) {
+      print('Server Error: $e');
       return Response(
         500,
         body: jsonEncode({'error': 'Server error', 'details': e.toString()}),
@@ -131,35 +137,5 @@ You are GlowGuard Assistant, focused ONLY on cosmetics, skincare, bleaching/whit
       .addHandler(router.call);
 
   final server = await shelf_io.serve(handler, InternetAddress.anyIPv4, port);
-  print('✅ GlowGuard backend running on http://${server.address.host}:${server.port}');
-}
-
-/// Extract assistant text from Responses API JSON.
-/// This implementation is defensive because output formats can vary.
-String extractOutputText(Map<String, dynamic> json) {
-  // Some responses may include a top-level "output_text" field.
-  final direct = json['output_text'];
-  if (direct is String && direct.trim().isNotEmpty) return direct;
-
-  final output = json['output'];
-  if (output is! List) return '';
-
-  final buffer = StringBuffer();
-
-  for (final item in output) {
-    if (item is Map<String, dynamic>) {
-      // Common structure: {type: "message", content: [{type:"output_text", text:"..."}]}
-      final content = item['content'];
-      if (content is List) {
-        for (final c in content) {
-          if (c is Map<String, dynamic>) {
-            final text = c['text'];
-            if (text is String) buffer.writeln(text);
-          }
-        }
-      }
-    }
-  }
-
-  return buffer.toString();
+  print('✅ GlowGuard (Arcee AI Trinity via OpenRouter) backend running on http://${server.address.host}:${server.port}');
 }
