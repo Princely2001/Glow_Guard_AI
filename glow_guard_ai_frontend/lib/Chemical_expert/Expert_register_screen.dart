@@ -25,7 +25,7 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
   bool _loading = false;
   bool _obscure = true;
   DateTime? _dob;
-  File? _credentialFile; // ✅ Hold the picked file
+  File? _credentialFile;
 
   final _titles = const ["Dr.", "Mr.", "Ms.", "Mrs.", "Prof."];
   String _title = "Dr.";
@@ -72,7 +72,6 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
     return "${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}";
   }
 
-  // ✅ Method to pick the credential file
   Future<void> _pickCredentialFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -117,19 +116,34 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
         experienceYears: _exp,
         educationLevel: _highestQualification,
         password: _passC.text,
-        credentialFile: _credentialFile, // ✅ Pass file to service
+        credentialFile: _credentialFile,
       );
 
       await _service.registerExpert(data);
 
       if (!mounted) return;
 
-      _snack("Registration Submitted! Pending Admin Verification.");
-      await _service.signOut();
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const ExpertLoginScreen()),
+      // SUCCESS MESSAGE: Informs user to check email
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text("Application Submitted"),
+          content: const Text("Your registration is now pending admin review. A confirmation email has been sent to you. Please check your inbox (and spam folder) for updates."),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await _service.signOut();
+                Navigator.of(context).pop();
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ExpertLoginScreen()),
+                );
+              },
+              child: const Text("OK"),
+            )
+          ],
+        ),
       );
 
     } on FirebaseAuthException catch (e) {
@@ -154,7 +168,6 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
           key: _formKey,
           child: Column(
             children: [
-              // Title + name
               Row(
                 children: [
                   Expanded(
@@ -184,7 +197,11 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
                 enabled: !_loading,
                 keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(labelText: "Email", border: OutlineInputBorder(), prefixIcon: Icon(Icons.email_outlined)),
-                validator: (v) => (v ?? "").trim().isEmpty ? "Email is required" : null,
+                validator: (v) {
+                  if ((v ?? "").trim().isEmpty) return "Email is required";
+                  if (!RegExp(r'\S+@\S+\.\S+').hasMatch(v!)) return "Enter a valid email";
+                  return null;
+                },
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -217,8 +234,6 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
                 decoration: const InputDecoration(labelText: "Highest qualification", border: OutlineInputBorder(), prefixIcon: Icon(Icons.verified_outlined)),
               ),
               const SizedBox(height: 16),
-
-              // ✅ Document Upload Section
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
@@ -244,7 +259,6 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
                   ],
                 ),
               ),
-
               const SizedBox(height: 16),
               TextFormField(
                 controller: _passC,
