@@ -10,7 +10,9 @@ class CredentialPreviewSheet {
         VoidCallback? onViewed,
         String title = "Credential Preview",
       }) async {
-    final fixedUrl = _normalizeDocUrl(url);
+
+    final bool isImg = _isImage(url);
+    final String fixedUrl = _normalizeDocUrl(url);
 
     await showModalBottomSheet(
       context: context,
@@ -19,7 +21,9 @@ class CredentialPreviewSheet {
       backgroundColor: Colors.transparent,
       builder: (_) => _CredentialPreviewView(
         url: fixedUrl,
+        originalUrl: url,
         title: title,
+        isImage: isImg,
       ),
     );
 
@@ -27,10 +31,22 @@ class CredentialPreviewSheet {
     onViewed?.call();
   }
 
+  // Safely extracts the extension even if the URL has Firebase tokens (e.g., ?alt=media)
+  static bool _isImage(String url) {
+    final path = url.split('?').first.toLowerCase();
+    return path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.png');
+  }
+
+  static bool _isPdf(String url) {
+    final path = url.split('?').first.toLowerCase();
+    return path.endsWith('.pdf');
+  }
+
   static String _normalizeDocUrl(String url) {
     final u = Uri.tryParse(url);
     if (u == null) return url;
 
+    // 1. Handle Google Drive links
     if (u.host.contains("drive.google.com")) {
       final segments = u.pathSegments;
       final dIndex = segments.indexOf("d");
@@ -43,6 +59,13 @@ class CredentialPreviewSheet {
         return "https://drive.google.com/file/d/$id/preview";
       }
     }
+
+    // 2. Handle PDF links via Google Docs Viewer
+    final lowerUrl = url.toLowerCase();
+    if (_isPdf(url) && !lowerUrl.contains('docs.google.com/gview')) {
+      return "https://docs.google.com/gview?embedded=true&url=${Uri.encodeComponent(url)}";
+    }
+
     return url;
   }
 }
@@ -50,18 +73,22 @@ class CredentialPreviewSheet {
 class _CredentialPreviewView extends StatefulWidget {
   const _CredentialPreviewView({
     required this.url,
+    required this.originalUrl,
     required this.title,
+    required this.isImage,
   });
 
   final String url;
+  final String originalUrl; // Used for direct image loading
   final String title;
+  final bool isImage;
 
   @override
   State<_CredentialPreviewView> createState() => _CredentialPreviewViewState();
 }
 
 class _CredentialPreviewViewState extends State<_CredentialPreviewView> {
-  late final WebViewController _controller;
+  WebViewController? _controller;
 
   bool _loading = true;
   String? _error;
@@ -70,40 +97,46 @@ class _CredentialPreviewViewState extends State<_CredentialPreviewView> {
   void initState() {
     super.initState();
 
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.white)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (_) {
-            if (!mounted) return;
-            setState(() {
-              _loading = true;
-              _error = null;
-            });
-          },
-          onPageFinished: (_) {
-            if (!mounted) return;
-            setState(() => _loading = false);
-          },
-          onWebResourceError: (err) {
-            if (!mounted) return;
-            setState(() {
-              _loading = false;
-              _error = err.description;
-            });
-          },
-          onNavigationRequest: (req) {
-            final u = Uri.tryParse(req.url);
-            if (u == null) return NavigationDecision.prevent;
-            if (u.scheme != "http" && u.scheme != "https") {
-              return NavigationDecision.prevent;
-            }
-            return NavigationDecision.navigate;
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse(widget.url));
+    if (!widget.isImage) {
+      // Initialize WebView ONLY for PDFs or other documents
+      _controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(Colors.white)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageStarted: (_) {
+              if (!mounted) return;
+              setState(() {
+                _loading = true;
+                _error = null;
+              });
+            },
+            onPageFinished: (_) {
+              if (!mounted) return;
+              setState(() => _loading = false);
+            },
+            onWebResourceError: (err) {
+              if (!mounted) return;
+              setState(() {
+                _loading = false;
+                _error = "${err.description} (Code: ${err.errorCode})";
+              });
+            },
+            onNavigationRequest: (req) {
+              final u = Uri.tryParse(req.url);
+              if (u == null) return NavigationDecision.prevent;
+              if (u.scheme != "http" && u.scheme != "https") {
+                return NavigationDecision.prevent;
+              }
+              return NavigationDecision.navigate;
+            },
+          ),
+        )
+        ..loadRequest(Uri.parse(widget.url));
+    } else {
+      // If it's an image, native loading handles itself
+      _loading = false;
+    }
   }
 
   @override
@@ -120,6 +153,7 @@ class _CredentialPreviewViewState extends State<_CredentialPreviewView> {
           ),
           child: Column(
             children: [
+              // Drag Handle
               Padding(
                 padding: const EdgeInsets.only(top: 10, bottom: 6),
                 child: Container(
@@ -139,7 +173,10 @@ class _CredentialPreviewViewState extends State<_CredentialPreviewView> {
                   children: [
                     CircleAvatar(
                       backgroundColor: CredentialPreviewSheet.teal.withOpacity(0.12),
-                      child: const Icon(Icons.description_outlined, color: CredentialPreviewSheet.teal),
+                      child: Icon(
+                          widget.isImage ? Icons.image_outlined : Icons.description_outlined,
+                          color: CredentialPreviewSheet.teal
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -161,17 +198,20 @@ class _CredentialPreviewViewState extends State<_CredentialPreviewView> {
                         child: CircularProgressIndicator(strokeWidth: 2.5),
                       ),
                     const SizedBox(width: 6),
-                    IconButton(
-                      tooltip: "Reload",
-                      onPressed: () {
-                        setState(() {
-                          _error = null;
-                          _loading = true;
-                        });
-                        _controller.loadRequest(Uri.parse(widget.url));
-                      },
-                      icon: const Icon(Icons.refresh),
-                    ),
+
+                    // Only show refresh button for PDFs in WebView
+                    if (!widget.isImage)
+                      IconButton(
+                        tooltip: "Reload",
+                        onPressed: () {
+                          setState(() {
+                            _error = null;
+                            _loading = true;
+                          });
+                          _controller?.loadRequest(Uri.parse(widget.url));
+                        },
+                        icon: const Icon(Icons.refresh),
+                      ),
                     IconButton(
                       tooltip: "Close",
                       onPressed: () => Navigator.pop(context),
@@ -183,12 +223,36 @@ class _CredentialPreviewViewState extends State<_CredentialPreviewView> {
 
               const Divider(height: 1),
 
+              // Content Area
               Expanded(
                 child: Stack(
                   children: [
-                    WebViewWidget(controller: _controller),
+                    if (widget.isImage)
+                    // ✅ NATIVE IMAGE RENDERER (Bypasses WebView completely)
+                      Center(
+                        child: InteractiveViewer(
+                          panEnabled: true,
+                          minScale: 0.5,
+                          maxScale: 4.0,
+                          child: Image.network(
+                            widget.originalUrl,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return const Center(child: CircularProgressIndicator());
+                            },
+                            errorBuilder: (context, error, stackTrace) {
+                              return const Center(
+                                child: Text("Could not load image. Link might be broken."),
+                              );
+                            },
+                          ),
+                        ),
+                      )
+                    else if (_controller != null)
+                    // ✅ WEBVIEW RENDERER (Only for PDFs)
+                      WebViewWidget(controller: _controller!),
 
-                    if (_error != null)
+                    if (_error != null && !widget.isImage)
                       Center(
                         child: Padding(
                           padding: const EdgeInsets.all(18),
@@ -221,7 +285,7 @@ class _CredentialPreviewViewState extends State<_CredentialPreviewView> {
                                       _error = null;
                                       _loading = true;
                                     });
-                                    _controller.loadRequest(Uri.parse(widget.url));
+                                    _controller?.loadRequest(Uri.parse(widget.url));
                                   },
                                   icon: const Icon(Icons.refresh),
                                   label: const Text("Reload"),
