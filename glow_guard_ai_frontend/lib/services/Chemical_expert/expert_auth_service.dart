@@ -1,15 +1,18 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class ExpertRegisterData {
-  final String title; // Dr., Mr., ...
-  final String name; // Smith
+  final String title;
+  final String name;
   final String email;
   final String contactNumber;
   final DateTime dateOfBirth;
-  final int experienceYears; // 0..30
-  final String educationLevel; // BSc 1st / MSc / PhD
+  final int experienceYears;
+  final String educationLevel;
   final String password;
+  final File? credentialFile; // ✅ Added to hold the uploaded document
 
   const ExpertRegisterData({
     required this.title,
@@ -20,23 +23,26 @@ class ExpertRegisterData {
     required this.experienceYears,
     required this.educationLevel,
     required this.password,
+    required this.credentialFile,
   });
 
-  String get callingName => "$title$name"; // Dr.Smith
+  String get callingName => "$title$name";
 }
 
 class ExpertAuthService {
   final FirebaseAuth _auth;
   final FirebaseFirestore _db;
+  final FirebaseStorage _storage;
 
   ExpertAuthService({
     FirebaseAuth? auth,
     FirebaseFirestore? db,
+    FirebaseStorage? storage,
   })  : _auth = auth ?? FirebaseAuth.instance,
-        _db = db ?? FirebaseFirestore.instance;
+        _db = db ?? FirebaseFirestore.instance,
+        _storage = storage ?? FirebaseStorage.instance;
 
-  /// ✅ Register expert -> Auth + experts/{uid}
-  /// ✅ Auto-approve if experienceYears > 5
+  /// ✅ Register expert -> Status ALWAYS "pending" until Admin Approval
   Future<void> registerExpert(ExpertRegisterData data) async {
     final cred = await _auth.createUserWithEmailAndPassword(
       email: data.email.trim(),
@@ -51,8 +57,18 @@ class ExpertAuthService {
       );
     }
 
-    // ✅ Auto approval rule
-    final status = data.experienceYears > 5 ? "active" : "pending";
+    String? certificateUrl;
+
+    // ✅ Upload credential document to Firebase Storage
+    if (data.credentialFile != null) {
+      final ext = data.credentialFile!.path.split('.').last;
+      final ref = _storage.ref().child('expert_credentials/$uid.$ext');
+      await ref.putFile(data.credentialFile!);
+      certificateUrl = await ref.getDownloadURL();
+    }
+
+    // ✅ STRICT POLICY: All new accounts are pending
+    const status = "pending";
 
     await _db.collection('experts').doc(uid).set({
       "uid": uid,
@@ -65,13 +81,13 @@ class ExpertAuthService {
       "dateOfBirth": Timestamp.fromDate(data.dateOfBirth),
       "chemicalTestingExperienceYears": data.experienceYears,
       "educationLevel": data.educationLevel,
+      "credentialUrl": certificateUrl, // ✅ Save the document link
       "status": status,
       "createdAt": FieldValue.serverTimestamp(),
-      if (status == "active") "approvedAt": FieldValue.serverTimestamp(),
     });
   }
 
-  /// ✅ Expert login -> must exist in experts/{uid} and status must be active
+  /// Expert login -> must exist in experts/{uid} and status must be active
   Future<String> loginExpert({
     required String email,
     required String password,
@@ -100,11 +116,19 @@ class ExpertAuthService {
     }
 
     final status = (snap.data()?['status'] ?? 'pending').toString().toLowerCase();
-    if (status != "active") {
+
+    // ✅ Handle Admin Verification block
+    if (status == "pending") {
       await _auth.signOut();
       throw FirebaseAuthException(
         code: "expert-pending",
-        message: "Your expert account is pending approval (experience must be > 5 years).",
+        message: "Your account is pending Admin Verification. We will notify you once your credentials are approved.",
+      );
+    } else if (status == "rejected") {
+      await _auth.signOut();
+      throw FirebaseAuthException(
+        code: "expert-rejected",
+        message: "Your application was rejected. Please contact support.",
       );
     }
 

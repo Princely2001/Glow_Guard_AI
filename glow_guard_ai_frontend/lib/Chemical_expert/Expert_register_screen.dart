@@ -1,9 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import '../services/Chemical_expert/expert_auth_service.dart';
-import '../Chemical_expert/home_screen.dart' as expert;
-import '../Chemical_expert/expert_login_screen.dart'; // change path if needed
+import '../Chemical_expert/expert_login_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
 
 class ExpertRegisterScreen extends StatefulWidget {
   const ExpertRegisterScreen({super.key});
@@ -25,11 +25,11 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
   bool _loading = false;
   bool _obscure = true;
   DateTime? _dob;
+  File? _credentialFile; // ✅ Hold the picked file
 
   final _titles = const ["Dr.", "Mr.", "Ms.", "Mrs.", "Prof."];
   String _title = "Dr.";
 
-  // ✅ Only BSc 1st Class + higher
   final _highestQualifications = const [
     "BSc (First Class / 1st Class Honours)",
     "MSc (Chemical-related)",
@@ -72,12 +72,31 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
     return "${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}";
   }
 
+  // ✅ Method to pick the credential file
+  Future<void> _pickCredentialFile() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+    );
+
+    if (result != null && result.files.single.path != null) {
+      setState(() {
+        _credentialFile = File(result.files.single.path!);
+      });
+    }
+  }
+
   Future<void> _register() async {
     final ok = _formKey.currentState?.validate() ?? false;
     if (!ok) return;
 
     if (_dob == null) {
       _snack("Please select date of birth.");
+      return;
+    }
+
+    if (_credentialFile == null) {
+      _snack("Please upload your degree or lab certification.");
       return;
     }
 
@@ -98,30 +117,21 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
         experienceYears: _exp,
         educationLevel: _highestQualification,
         password: _passC.text,
+        credentialFile: _credentialFile, // ✅ Pass file to service
       );
 
       await _service.registerExpert(data);
 
-      // ✅ Decide based on experience rule
-      final autoApproved = _exp > 5;
-
       if (!mounted) return;
 
-      if (autoApproved) {
-        _snack("Approved automatically ✅ (Experience > 5 years)");
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const expert.HomeScreen()),
-        );
-      } else {
-        _snack("Registered ✅ Pending approval (Experience must be > 5 years)");
-        // optional: sign out so they don't stay logged in while pending
-        await _service.signOut();
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const ExpertLoginScreen()),
-        );
-      }
+      _snack("Registration Submitted! Pending Admin Verification.");
+      await _service.signOut();
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const ExpertLoginScreen()),
+      );
+
     } on FirebaseAuthException catch (e) {
       _snack(e.message ?? e.code);
     } catch (e) {
@@ -151,14 +161,9 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
                     flex: 2,
                     child: DropdownButtonFormField<String>(
                       value: _title,
-                      items: _titles
-                          .map((t) => DropdownMenuItem(value: t, child: Text(t)))
-                          .toList(),
+                      items: _titles.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
                       onChanged: _loading ? null : (v) => setState(() => _title = v!),
-                      decoration: const InputDecoration(
-                        labelText: "Title",
-                        border: OutlineInputBorder(),
-                      ),
+                      decoration: const InputDecoration(labelText: "Title", border: OutlineInputBorder()),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -167,202 +172,112 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
                     child: TextFormField(
                       controller: _nameC,
                       enabled: !_loading,
-                      decoration: const InputDecoration(
-                        labelText: "Name (e.g., Smith)",
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) {
-                        final s = (v ?? "").trim();
-                        if (s.isEmpty) return "Name is required";
-                        if (s.length < 2) return "Enter a valid name";
-                        return null;
-                      },
+                      decoration: const InputDecoration(labelText: "Name (e.g., Smith)", border: OutlineInputBorder()),
+                      validator: (v) => (v ?? "").trim().isEmpty ? "Name is required" : null,
                     ),
                   ),
                 ],
               ),
-
-              const SizedBox(height: 10),
-
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "Calling name: ${_title}${_nameC.text.trim().isEmpty ? "Smith" : _nameC.text.trim()}",
-                  style: TextStyle(color: cs.onSurfaceVariant),
-                ),
-              ),
-
               const SizedBox(height: 12),
-
               TextFormField(
                 controller: _emailC,
                 enabled: !_loading,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: "Email",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.email_outlined),
-                ),
-                validator: (v) {
-                  final s = (v ?? "").trim();
-                  if (s.isEmpty) return "Email is required";
-                  if (!s.contains("@") || !s.contains(".")) return "Enter a valid email";
-                  return null;
-                },
+                decoration: const InputDecoration(labelText: "Email", border: OutlineInputBorder(), prefixIcon: Icon(Icons.email_outlined)),
+                validator: (v) => (v ?? "").trim().isEmpty ? "Email is required" : null,
               ),
-
               const SizedBox(height: 12),
-
               TextFormField(
                 controller: _phoneC,
                 enabled: !_loading,
                 keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  labelText: "Contact number",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.phone_outlined),
-                ),
-                validator: (v) {
-                  final s = (v ?? "").trim();
-                  if (s.isEmpty) return "Contact number is required";
-                  if (s.length < 8) return "Enter a valid contact number";
-                  return null;
-                },
+                decoration: const InputDecoration(labelText: "Contact number", border: OutlineInputBorder(), prefixIcon: Icon(Icons.phone_outlined)),
+                validator: (v) => (v ?? "").trim().isEmpty ? "Contact number is required" : null,
               ),
-
               const SizedBox(height: 12),
-
               InkWell(
                 onTap: _loading ? null : _pickDob,
                 child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: "Date of birth",
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.cake_outlined),
-                  ),
+                  decoration: const InputDecoration(labelText: "Date of birth", border: OutlineInputBorder(), prefixIcon: Icon(Icons.cake_outlined)),
                   child: Text(_dobText()),
                 ),
               ),
-
               const SizedBox(height: 12),
-
               DropdownButtonFormField<int>(
                 value: _exp,
-                items: _experienceYears
-                    .map((y) => DropdownMenuItem(
-                  value: y,
-                  child: Text("$y year${y == 1 ? "" : "s"}"),
-                ))
-                    .toList(),
+                items: _experienceYears.map((y) => DropdownMenuItem(value: y, child: Text("$y year${y == 1 ? "" : "s"}"))).toList(),
                 onChanged: _loading ? null : (v) => setState(() => _exp = v ?? 0),
-                decoration: const InputDecoration(
-                  labelText: "Experience in chemical testing (years)",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.science_outlined),
-                ),
+                decoration: const InputDecoration(labelText: "Experience (years)", border: OutlineInputBorder(), prefixIcon: Icon(Icons.science_outlined)),
               ),
-
               const SizedBox(height: 12),
-
-              // fixed minimum degree
-              InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: "Minimum Degree Required",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.school_outlined),
-                ),
-                child: const Text(
-                  "BSc (First Class / 1st Class Honours)",
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
               DropdownButtonFormField<String>(
                 value: _highestQualification,
-                items: _highestQualifications
-                    .map((q) => DropdownMenuItem(value: q, child: Text(q)))
-                    .toList(),
+                items: _highestQualifications.map((q) => DropdownMenuItem(value: q, child: Text(q))).toList(),
                 onChanged: _loading ? null : (v) => setState(() => _highestQualification = v!),
-                decoration: const InputDecoration(
-                  labelText: "Highest qualification",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.verified_outlined),
+                decoration: const InputDecoration(labelText: "Highest qualification", border: OutlineInputBorder(), prefixIcon: Icon(Icons.verified_outlined)),
+              ),
+              const SizedBox(height: 16),
+
+              // ✅ Document Upload Section
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  border: Border.all(color: cs.outlineVariant),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    const Text("Upload Credentials", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const SizedBox(height: 8),
+                    const Text("Please upload a clear copy of your degree or lab certification (PDF/Image).", textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _loading ? null : _pickCredentialFile,
+                      icon: const Icon(Icons.upload_file),
+                      label: Text(_credentialFile == null ? "Select Document" : "Change Document"),
+                    ),
+                    if (_credentialFile != null) ...[
+                      const SizedBox(height: 8),
+                      Text("Selected: ${_credentialFile!.path.split('/').last}", style: const TextStyle(color: teal, fontWeight: FontWeight.bold)),
+                    ]
+                  ],
                 ),
               ),
 
-              const SizedBox(height: 12),
-
+              const SizedBox(height: 16),
               TextFormField(
                 controller: _passC,
                 enabled: !_loading,
                 obscureText: _obscure,
                 decoration: InputDecoration(
-                  labelText: "Password",
-                  border: const OutlineInputBorder(),
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  suffixIcon: IconButton(
-                    onPressed: _loading ? null : () => setState(() => _obscure = !_obscure),
-                    icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                  ),
+                  labelText: "Password", border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(onPressed: () => setState(() => _obscure = !_obscure), icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined)),
                 ),
-                validator: (v) {
-                  final s = v ?? "";
-                  if (s.isEmpty) return "Password is required";
-                  if (s.length < 6) return "Minimum 6 characters";
-                  return null;
-                },
+                validator: (v) => (v ?? "").length < 6 ? "Minimum 6 characters" : null,
               ),
-
               const SizedBox(height: 12),
-
               TextFormField(
                 controller: _confirmC,
                 enabled: !_loading,
                 obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: "Confirm password",
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock_outline),
-                ),
-                validator: (v) {
-                  final s = v ?? "";
-                  if (s.isEmpty) return "Confirm your password";
-                  return null;
-                },
+                decoration: const InputDecoration(labelText: "Confirm password", border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock_outline)),
+                validator: (v) => (v ?? "").isEmpty ? "Confirm your password" : null,
               ),
-
-              const SizedBox(height: 16),
-
+              const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _loading ? null : _register,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: teal,
-                    foregroundColor: Colors.white,
+                    backgroundColor: teal, foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                   child: _loading
-                      ? const SizedBox(
-                    height: 18,
-                    width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                  )
-                      : const Text(
-                    "Register as Chemical Expert",
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
+                      ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text("Submit Application", style: TextStyle(fontWeight: FontWeight.w800)),
                 ),
-              ),
-
-              const SizedBox(height: 10),
-
-              Text(
-                "Auto approval: Experience must be greater than 5 years.",
-                style: TextStyle(color: cs.onSurfaceVariant),
               ),
             ],
           ),

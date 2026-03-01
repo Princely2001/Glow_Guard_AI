@@ -19,7 +19,7 @@ dependencies:
   # 🗄 Firestore database
   cloud_firestore: ^5.4.1
 
-  # ☁ Storage for Before/After images
+  # ☁ Storage for Before/After images & Credentials
   firebase_storage: ^12.3.2
 
   # 🔔 Push Notifications
@@ -29,7 +29,10 @@ dependencies:
   cupertino_icons: ^1.0.8
   intl: ^0.18.1
 
-  # 📸 Image picking
+  # 🔗 URL Launcher (Used for Admin Verification to view PDF/Image credentials)
+  url_launcher: ^6.3.0
+
+  # 📸 Image & File picking
   image_picker: ^1.0.4
   file_picker: ^8.0.6
 

@@ -1,34 +1,28 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
-import '../services/User/user_auth_service.dart';
-import '../User/user_shell.dart';
-import 'register_screen.dart';
-import '../Chemical_expert/Expert_login_screen.dart';
-import '../Admin/admin_login_screen.dart';
+import 'admin_verification_screen.dart';
+import '../User/login_screen.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class AdminLoginScreen extends StatefulWidget {
+  const AdminLoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<AdminLoginScreen> createState() => _AdminLoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen>
+class _AdminLoginScreenState extends State<AdminLoginScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c;
   late final Animation<double> _fade;
   late final Animation<Offset> _slide;
-
-  final _service = UserLoginService();
 
   final _formKey = GlobalKey<FormState>();
   final _emailC = TextEditingController();
   final _passC = TextEditingController();
 
   bool _obscure = true;
-  bool _pressedUser = false;
+  bool _pressed = false;
   bool _loading = false;
 
   @override
@@ -54,47 +48,36 @@ class _LoginScreenState extends State<LoginScreen>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  Future<void> _login() async {
+  Future<void> _loginAdmin() async {
     final ok = _formKey.currentState?.validate() ?? false;
     if (!ok) return;
 
     setState(() => _loading = true);
 
     try {
-      await _service.loginUser(
-        email: _emailC.text,
-        password: _passC.text,
-      );
+      // ⚠️ WARNING: HARDCODED CREDENTIALS ⚠️
+      // This is strictly for demonstration/development purposes.
+      // Do not use this method in a public production environment.
 
-      if (!mounted) return;
+      final String email = _emailC.text.trim();
+      final String password = _passC.text;
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const UserShell()),
-      );
-    } on FirebaseAuthException catch (e) {
-      switch (e.code) {
-        case 'user-not-found':
-          _snack("No account found for that email.");
-          break;
-        case 'wrong-password':
-          _snack("Incorrect password.");
-          break;
-        case 'invalid-email':
-          _snack("Please enter a valid email address.");
-          break;
-        case 'too-many-requests':
-          _snack("Too many attempts. Try again later.");
-          break;
-        case 'network-request-failed':
-          _snack("Network error. Check your internet connection.");
-          break;
-        case 'no-user-profile':
-          _snack("No user profile found. Please register again.");
-          break;
-        default:
-          _snack("Login failed: ${e.message ?? e.code}");
+      // Simulate network delay for realism during your demo
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      if (email == "admin@glowguard.com" && password == "Admin123!") {
+        if (!mounted) return;
+
+        // Success! Navigate to the Admin Dashboard
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminVerificationScreen()),
+        );
+      } else {
+        // Invalid credentials
+        _snack("Incorrect Admin Email or Password.");
       }
+
     } catch (e) {
       _snack("Error: $e");
     } finally {
@@ -102,27 +85,12 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  Future<void> _forgotPassword() async {
-    final email = _emailC.text.trim();
-    if (email.isEmpty) {
-      _snack("Enter your email first, then tap 'Forgot password?'.");
-      return;
-    }
-
-    try {
-      await _service.sendPasswordReset(email);
-      _snack("Password reset email sent to $email");
-    } on FirebaseAuthException catch (e) {
-      _snack("Reset failed: ${e.message ?? e.code}");
-    } catch (e) {
-      _snack("Error: $e");
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    const teal = Color(0xFF009688);
+
+    // Using a slightly different color scheme (Blue/Grey) for Admin to distinguish it visually
+    const adminColor = Color(0xFF455A64);
 
     return Scaffold(
       body: Stack(
@@ -132,12 +100,12 @@ class _LoginScreenState extends State<LoginScreen>
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Color(0xFFE9FBF9), Color(0xFFF6FFFD), Color(0xFFFFFFFF)],
+                colors: [Color(0xFFECEFF1), Color(0xFFCFD8DC), Color(0xFFFFFFFF)],
               ),
             ),
           ),
-          Positioned(top: -120, left: -80, child: _Blob(color: teal.withOpacity(0.16), size: 260)),
-          Positioned(bottom: -140, right: -90, child: _Blob(color: cs.secondary.withOpacity(0.14), size: 320)),
+          Positioned(top: -120, left: -80, child: _Blob(color: adminColor.withOpacity(0.16), size: 260)),
+          Positioned(bottom: -140, right: -90, child: _Blob(color: adminColor.withOpacity(0.14), size: 320)),
 
           SafeArea(
             child: Center(
@@ -163,17 +131,17 @@ class _LoginScreenState extends State<LoginScreen>
                                   final dy = math.sin(t * math.pi * 2) * 4.5;
                                   return Transform.translate(
                                     offset: Offset(0, dy),
-                                    child: const _LogoBadge(),
+                                    child: const _LogoBadge(icon: Icons.admin_panel_settings, color: adminColor),
                                   );
                                 },
                               ),
                               const SizedBox(height: 14),
 
                               const Text(
-                                'GlowGuard AI',
+                                'Admin Portal',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontSize: 28,
+                                  fontSize: 26,
                                   fontWeight: FontWeight.w800,
                                   color: Colors.black87,
                                 ),
@@ -181,7 +149,7 @@ class _LoginScreenState extends State<LoginScreen>
                               const SizedBox(height: 8),
 
                               Text(
-                                'Detect illicit ingredients in cosmetics\nwith smart safety guidance.',
+                                'Login to manage experts\nand system verification workflows.',
                                 textAlign: TextAlign.center,
                                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                   color: Colors.black54,
@@ -192,14 +160,13 @@ class _LoginScreenState extends State<LoginScreen>
 
                               _NiceField(
                                 controller: _emailC,
-                                label: 'Email',
-                                hint: 'you@example.com',
+                                label: 'Admin Email',
+                                hint: 'admin@glowguard.com',
                                 icon: Icons.email_outlined,
                                 keyboardType: TextInputType.emailAddress,
                                 validator: (v) {
                                   final s = (v ?? '').trim();
                                   if (s.isEmpty) return "Email is required";
-                                  if (!s.contains('@') || !s.contains('.')) return "Enter a valid email";
                                   return null;
                                 },
                               ),
@@ -218,36 +185,25 @@ class _LoginScreenState extends State<LoginScreen>
                                 validator: (v) {
                                   final s = (v ?? '');
                                   if (s.isEmpty) return "Password is required";
-                                  if (s.length < 6) return "Password must be at least 6 characters";
                                   return null;
                                 },
                               ),
 
-                              const SizedBox(height: 10),
-
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton(
-                                  onPressed: _loading ? null : _forgotPassword,
-                                  child: const Text('Forgot password?'),
-                                ),
-                              ),
-
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 24),
 
                               GestureDetector(
-                                onTapDown: (_) => setState(() => _pressedUser = true),
-                                onTapUp: (_) => setState(() => _pressedUser = false),
-                                onTapCancel: () => setState(() => _pressedUser = false),
+                                onTapDown: (_) => setState(() => _pressed = true),
+                                onTapUp: (_) => setState(() => _pressed = false),
+                                onTapCancel: () => setState(() => _pressed = false),
                                 child: AnimatedScale(
-                                  scale: _pressedUser ? 0.98 : 1.0,
+                                  scale: _pressed ? 0.98 : 1.0,
                                   duration: const Duration(milliseconds: 120),
                                   curve: Curves.easeOut,
                                   child: ElevatedButton(
-                                    onPressed: _loading ? null : _login,
+                                    onPressed: _loading ? null : _loginAdmin,
                                     style: ElevatedButton.styleFrom(
                                       padding: const EdgeInsets.symmetric(vertical: 15),
-                                      backgroundColor: teal,
+                                      backgroundColor: adminColor,
                                       foregroundColor: Colors.white,
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                                       elevation: 0,
@@ -259,83 +215,27 @@ class _LoginScreenState extends State<LoginScreen>
                                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                     )
                                         : const Text(
-                                      'Login',
+                                      'Secure Login',
                                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                                     ),
                                   ),
                                 ),
                               ),
 
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 16),
 
-                              FilledButton.tonalIcon(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => const ExpertLoginScreen()),
-                                  );
-                                },
-                                icon: const Icon(Icons.science_outlined),
-                                label: const Text('Login as Chemical Expert'),
-                              ),
-
-                              const SizedBox(height: 12),
-
-                              OutlinedButton.icon(
+                              TextButton.icon(
                                 onPressed: _loading
                                     ? null
                                     : () {
-                                  Navigator.push(
+                                  Navigator.pushReplacement(
                                     context,
-                                    MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                                    MaterialPageRoute(builder: (_) => const LoginScreen()),
                                   );
                                 },
-                                icon: const Icon(Icons.person_add_alt_1_outlined),
-                                label: const Text('Create an Account'),
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                                ),
+                                icon: const Icon(Icons.arrow_back),
+                                label: const Text('Back to User Login'),
                               ),
-
-                              const SizedBox(height: 20),
-                              const Divider(color: Colors.black12, thickness: 1),
-                              const SizedBox(height: 8),
-
-                              // ✅ IMPROVED: Admin Access Button
-                              Align(
-                                alignment: Alignment.center,
-                                child: TextButton.icon(
-                                  onPressed: _loading
-                                      ? null
-                                      : () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => const AdminLoginScreen(),
-                                      ),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.admin_panel_settings_outlined, size: 20),
-                                  label: const Text(
-                                    'Admin Portal',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: const Color(0xFF455A64), // Darker Blue-Grey contrast
-                                    backgroundColor: const Color(0xFF455A64).withOpacity(0.08), // Subtle background box
-                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                ),
-                              ),
-
                             ],
                           ),
                         ),
@@ -363,9 +263,9 @@ class _GlassCard extends StatelessWidget {
     return Container(
       constraints: const BoxConstraints(maxWidth: 420),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.78),
+        color: Colors.white.withOpacity(0.85),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withOpacity(0.8)),
+        border: Border.all(color: Colors.white.withOpacity(0.9)),
         boxShadow: [
           BoxShadow(
             blurRadius: 30,
@@ -381,11 +281,12 @@ class _GlassCard extends StatelessWidget {
 }
 
 class _LogoBadge extends StatelessWidget {
-  const _LogoBadge();
+  final IconData icon;
+  final Color color;
+  const _LogoBadge({required this.icon, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    const teal = Color(0xFF009688);
     return Center(
       child: Container(
         height: 78,
@@ -395,17 +296,17 @@ class _LogoBadge extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [teal.withOpacity(0.95), teal.withOpacity(0.70)],
+            colors: [color.withOpacity(0.95), color.withOpacity(0.70)],
           ),
           boxShadow: [
             BoxShadow(
               blurRadius: 18,
               offset: const Offset(0, 10),
-              color: teal.withOpacity(0.22),
+              color: color.withOpacity(0.22),
             ),
           ],
         ),
-        child: const Icon(Icons.shield_outlined, size: 38, color: Colors.white),
+        child: Icon(icon, size: 38, color: Colors.white),
       ),
     );
   }
@@ -447,7 +348,7 @@ class _NiceField extends StatelessWidget {
         prefixIcon: Icon(icon),
         suffixIcon: suffix,
         filled: true,
-        fillColor: cs.surfaceContainerHighest.withOpacity(0.65),
+        fillColor: cs.surfaceContainerHighest.withOpacity(0.4),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: cs.outlineVariant),
