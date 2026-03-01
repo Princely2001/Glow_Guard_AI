@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // NEW: Added Firebase Auth import
 
 import 'admin_verification_screen.dart';
 import '../User/login_screen.dart';
@@ -48,6 +49,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  // UPDATED: Now actually logs into Firebase Authentication
   Future<void> _loginAdmin() async {
     final ok = _formKey.currentState?.validate() ?? false;
     if (!ok) return;
@@ -55,29 +57,26 @@ class _AdminLoginScreenState extends State<AdminLoginScreen>
     setState(() => _loading = true);
 
     try {
-      // ⚠️ WARNING: HARDCODED CREDENTIALS ⚠️
-      // This is strictly for demonstration/development purposes.
-      // Do not use this method in a public production environment.
-
       final String email = _emailC.text.trim();
       final String password = _passC.text;
 
-      // Simulate network delay for realism during your demo
-      await Future.delayed(const Duration(milliseconds: 800));
+      // Secure login via Firebase
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-      if (email == "admin@glowguard.com" && password == "Admin123!") {
-        if (!mounted) return;
+      if (!mounted) return;
 
-        // Success! Navigate to the Admin Dashboard
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const AdminVerificationScreen()),
-        );
-      } else {
-        // Invalid credentials
-        _snack("Incorrect Admin Email or Password.");
-      }
+      // Success! Navigate to the Admin Dashboard
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const AdminVerificationScreen()),
+      );
 
+    } on FirebaseAuthException catch (e) {
+      // Firebase will tell us if the password is wrong or user doesn't exist
+      _snack(e.message ?? "Incorrect Admin Email or Password.");
     } catch (e) {
       _snack("Error: $e");
     } finally {

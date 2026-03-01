@@ -10,33 +10,24 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # 🔥 Firebase Core
   firebase_core: ^3.6.0
-
-  # 🔐 Authentication
   firebase_auth: ^5.3.1
-
-  # 🗄 Firestore database
   cloud_firestore: ^5.4.1
-
-  # ☁ Storage for Before/After images & Credentials
   firebase_storage: ^12.3.2
-
-  # 🔔 Push Notifications
   firebase_messaging: 15.2.10
 
   # UI & Utils
   cupertino_icons: ^1.0.8
   intl: ^0.18.1
 
-  # 🔗 URL Launcher (Used for Admin Verification to view PDF/Image credentials)
-  url_launcher: ^6.3.0
+  # NEW: Added for internal document viewing
+  webview_flutter: ^4.4.2
 
-  # 📸 Image & File picking
+  url_launcher: ^6.3.0
   image_picker: ^1.0.4
   file_picker: ^8.0.6
 
-  # 🤖 ML
+  # ML
   image: ^4.1.7
   tflite_flutter: ^0.12.1
 
@@ -47,7 +38,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-
   assets:
     - assets/ml/glowguard_efficientnet.tflite
     - assets/ml/labels.txt
