@@ -11,8 +11,9 @@ class ExpertRegisterData {
   final DateTime dateOfBirth;
   final int experienceYears;
   final String educationLevel;
+  final String location; // ✅ Added location (City/District)
   final String password;
-  final File? credentialFile; // ✅ Added to hold the uploaded document
+  final File? credentialFile;
 
   const ExpertRegisterData({
     required this.title,
@@ -22,6 +23,7 @@ class ExpertRegisterData {
     required this.dateOfBirth,
     required this.experienceYears,
     required this.educationLevel,
+    required this.location, // ✅ Added location
     required this.password,
     required this.credentialFile,
   });
@@ -81,7 +83,8 @@ class ExpertAuthService {
       "dateOfBirth": Timestamp.fromDate(data.dateOfBirth),
       "chemicalTestingExperienceYears": data.experienceYears,
       "educationLevel": data.educationLevel,
-      "credentialUrl": certificateUrl, // ✅ Save the document link
+      "location": data.location, // ✅ Save the location to Firestore
+      "credentialUrl": certificateUrl,
       "status": status,
       "createdAt": FieldValue.serverTimestamp(),
     });

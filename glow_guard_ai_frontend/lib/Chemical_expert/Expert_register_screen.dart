@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/Chemical_expert/expert_auth_service.dart';
-import '../Chemical_expert/expert_login_screen.dart';
+import '../Chemical_expert/expert_login_screen.dart'; // Ensure this matches your file path case
 import 'package:firebase_auth/firebase_auth.dart';
 
 class ExpertRegisterScreen extends StatefulWidget {
@@ -29,6 +29,16 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
 
   final _titles = const ["Dr.", "Mr.", "Ms.", "Mrs.", "Prof."];
   String _title = "Dr.";
+
+  // ✅ Added Sri Lankan Districts
+  final _sriLankanDistricts = const [
+    "Ampara", "Anuradhapura", "Badulla", "Batticaloa", "Colombo",
+    "Galle", "Gampaha", "Hambantota", "Jaffna", "Kalutara",
+    "Kandy", "Kegalle", "Kilinochchi", "Kurunegala", "Mannar",
+    "Matale", "Matara", "Moneragala", "Mullaitivu", "Nuwara Eliya",
+    "Polonnaruwa", "Puttalam", "Ratnapura", "Trincomalee", "Vavuniya"
+  ];
+  String? _selectedDistrict; // ✅ State variable for location
 
   final _highestQualifications = const [
     "BSc (First Class / 1st Class Honours)",
@@ -94,6 +104,11 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
       return;
     }
 
+    if (_selectedDistrict == null) {
+      _snack("Please select your district.");
+      return;
+    }
+
     if (_credentialFile == null) {
       _snack("Please upload your degree or lab certification.");
       return;
@@ -115,6 +130,7 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
         dateOfBirth: _dob!,
         experienceYears: _exp,
         educationLevel: _highestQualification,
+        location: _selectedDistrict!, // ✅ Pass the selected district
         password: _passC.text,
         credentialFile: _credentialFile,
       );
@@ -212,6 +228,22 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
                 validator: (v) => (v ?? "").trim().isEmpty ? "Contact number is required" : null,
               ),
               const SizedBox(height: 12),
+
+              // ✅ Added District Dropdown
+              DropdownButtonFormField<String>(
+                value: _selectedDistrict,
+                hint: const Text("Select District"),
+                items: _sriLankanDistricts.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+                onChanged: _loading ? null : (v) => setState(() => _selectedDistrict = v),
+                decoration: const InputDecoration(
+                    labelText: "District",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.location_city_outlined)
+                ),
+                validator: (v) => v == null || v.isEmpty ? "Please select a district" : null,
+              ),
+              const SizedBox(height: 12),
+
               InkWell(
                 onTap: _loading ? null : _pickDob,
                 child: InputDecorator(

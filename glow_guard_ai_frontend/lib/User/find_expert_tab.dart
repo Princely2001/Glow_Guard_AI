@@ -12,6 +12,17 @@ class FindExpertTab extends StatefulWidget {
 
 class _FindExpertTabState extends State<FindExpertTab> {
   String _q = "";
+  String _selectedDistrict = "All Districts";
+
+  // List of all Sri Lankan districts plus an "All Districts" option for clearing the filter
+  final _sriLankanDistricts = const [
+    "All Districts",
+    "Ampara", "Anuradhapura", "Badulla", "Batticaloa", "Colombo",
+    "Galle", "Gampaha", "Hambantota", "Jaffna", "Kalutara",
+    "Kandy", "Kegalle", "Kilinochchi", "Kurunegala", "Mannar",
+    "Matale", "Matara", "Moneragala", "Mullaitivu", "Nuwara Eliya",
+    "Polonnaruwa", "Puttalam", "Ratnapura", "Trincomalee", "Vavuniya"
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +38,7 @@ class _FindExpertTabState extends State<FindExpertTab> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            // Search by Name or Specialty
             TextField(
               decoration: InputDecoration(
                 hintText: "Search by name or specialty...",
@@ -36,6 +48,21 @@ class _FindExpertTabState extends State<FindExpertTab> {
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
               ),
               onChanged: (v) => setState(() => _q = v.trim().toLowerCase()),
+            ),
+            const SizedBox(height: 12),
+
+            // Filter by Location (District)
+            DropdownButtonFormField<String>(
+              value: _selectedDistrict,
+              items: _sriLankanDistricts.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+              onChanged: (v) => setState(() => _selectedDistrict = v!),
+              decoration: InputDecoration(
+                labelText: "Filter by Location",
+                prefixIcon: const Icon(Icons.location_on_outlined),
+                filled: true,
+                fillColor: cs.surfaceContainerHighest,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+              ),
             ),
             const SizedBox(height: 14),
 
@@ -54,16 +81,23 @@ class _FindExpertTabState extends State<FindExpertTab> {
 
                   final filtered = docs.where((d) {
                     final data = d.data();
-                    final name = (data['callingName'] ?? data['name'] ?? 'Expert').toString();
-                    final specialty = (data['specialty'] ?? 'Chemical Expert').toString();
-                    final s = "$name $specialty".toLowerCase();
-                    return _q.isEmpty || s.contains(_q);
+                    final name = (data['callingName'] ?? data['name'] ?? 'Expert').toString().toLowerCase();
+                    final specialty = (data['specialty'] ?? 'Chemical Expert').toString().toLowerCase();
+                    final location = (data['location'] ?? '').toString();
+
+                    // Match text query
+                    final matchesSearch = _q.isEmpty || name.contains(_q) || specialty.contains(_q);
+
+                    // Match location dropdown
+                    final matchesDistrict = _selectedDistrict == "All Districts" || location == _selectedDistrict;
+
+                    return matchesSearch && matchesDistrict;
                   }).toList();
 
                   if (filtered.isEmpty) {
                     return Center(
                       child: Text(
-                        "No matching experts.",
+                        "No matching experts found for the selected location.",
                         style: TextStyle(color: cs.onSurfaceVariant),
                       ),
                     );
@@ -79,6 +113,7 @@ class _FindExpertTabState extends State<FindExpertTab> {
                       final expertId = d.id;
                       final name = (data['callingName'] ?? data['name'] ?? 'Expert').toString();
                       final specialty = (data['specialty'] ?? 'Chemical Expert').toString();
+                      final location = (data['location'] ?? 'Location not set').toString();
                       final photoUrl = (data['photoUrl'] ?? '').toString();
                       final rating = (data['rating'] ?? 4.8).toString();
                       final jobs = (data['jobs'] ?? 0).toString();
@@ -134,8 +169,9 @@ class _FindExpertTabState extends State<FindExpertTab> {
                                       ),
                                     ),
                                     const SizedBox(height: 4),
+                                    // Display location alongside specialty and rating
                                     Text(
-                                      "$specialty • ⭐ $rating • $jobs jobs",
+                                      "$specialty • 📍 $location\n⭐ $rating • $jobs jobs",
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodySmall
