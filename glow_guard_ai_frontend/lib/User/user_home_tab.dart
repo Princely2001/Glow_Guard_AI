@@ -12,6 +12,7 @@ import 'View_Test_Results.dart';
 import 'research_tab.dart';
 import 'chatbot_tab.dart';
 import 'profile_tab.dart';
+import 'ProductReportScreen.dart';
 
 /// ✅ More attractive + animative User Home (no extra packages)
 class UserHomeTab extends StatefulWidget {
@@ -174,12 +175,12 @@ class _UserHomeTabState extends State<UserHomeTab> with SingleTickerProviderStat
                               ),
                               children: [
                                 _ActionTile(
-                                  icon: Icons.search_outlined,
-                                  title: "Find Expert",
-                                  subtitle: "Request a test",
+                                  icon: Icons.report_problem_outlined,
+                                  title: "Report Harmful",
+                                  subtitle: "Track side effects",
                                   onTap: () => Navigator.push(
                                     context,
-                                    MaterialPageRoute(builder: (_) => const FindExpertTab()),
+                                    MaterialPageRoute(builder: (_) => const DangerousProductReportScreen()),
                                   ),
                                 ),
                                 _ActionTile(
