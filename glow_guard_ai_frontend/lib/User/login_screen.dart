@@ -102,21 +102,91 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  Future<void> _forgotPassword() async {
-    final email = _emailC.text.trim();
-    if (email.isEmpty) {
-      _snack("Enter your email first, then tap 'Forgot password?'.");
-      return;
-    }
+  // ✅ IMPROVED: Dedicated Forgot Password Dialog UI
+  Future<void> _showForgotPasswordDialog() async {
+    final resetEmailC = TextEditingController(text: _emailC.text);
+    final formKey = GlobalKey<FormState>();
+    bool isSending = false;
 
-    try {
-      await _service.sendPasswordReset(email);
-      _snack("Password reset email sent to $email");
-    } on FirebaseAuthException catch (e) {
-      _snack("Reset failed: ${e.message ?? e.code}");
-    } catch (e) {
-      _snack("Error: $e");
-    }
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Reset Password'),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                        'Enter your email address and we will send you a link to reset your password.'),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: resetEmailC,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: InputDecoration(
+                        labelText: 'Email',
+                        prefixIcon: const Icon(Icons.email_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      validator: (v) {
+                        final s = (v ?? '').trim();
+                        if (s.isEmpty) return "Email is required";
+                        if (!s.contains('@') || !s.contains('.')) return "Enter a valid email";
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSending ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSending
+                      ? null
+                      : () async {
+                    if (formKey.currentState?.validate() ?? false) {
+                      setState(() => isSending = true);
+                      try {
+                        await _service.sendPasswordReset(resetEmailC.text.trim());
+                        if (!context.mounted) return;
+                        Navigator.pop(context);
+                        _snack("Password reset email sent to ${resetEmailC.text}");
+                      } on FirebaseAuthException catch (e) {
+                        _snack("Reset failed: ${e.message ?? e.code}");
+                        setState(() => isSending = false);
+                      } catch (e) {
+                        _snack("Error: $e");
+                        setState(() => isSending = false);
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF009688),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: isSending
+                      ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                      : const Text('Send Link'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -225,10 +295,11 @@ class _LoginScreenState extends State<LoginScreen>
 
                               const SizedBox(height: 10),
 
+                              // ✅ IMPROVED: Forgot Password button mapped to the dialog
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: TextButton(
-                                  onPressed: _loading ? null : _forgotPassword,
+                                  onPressed: _loading ? null : _showForgotPasswordDialog,
                                   child: const Text('Forgot password?'),
                                 ),
                               ),
@@ -302,7 +373,6 @@ class _LoginScreenState extends State<LoginScreen>
                               const Divider(color: Colors.black12, thickness: 1),
                               const SizedBox(height: 8),
 
-                              // ✅ IMPROVED: Admin Access Button
                               Align(
                                 alignment: Alignment.center,
                                 child: TextButton.icon(

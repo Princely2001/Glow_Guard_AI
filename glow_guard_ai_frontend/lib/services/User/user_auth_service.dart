@@ -1,11 +1,11 @@
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_messaging/firebase_messaging.dart'; // ✅ Added import for Push Notifications
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:intl/intl.dart';
 
 class UserRegisterData {
-  final String userId; // system generated GG-xxxxxx-year
+  final String userId;
   final String name;
   final String email;
   final String phone;
@@ -30,7 +30,6 @@ class UserRegisterData {
   });
 }
 
-// ✅ Added NotificationService to handle FCM tokens
 class NotificationService {
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -40,7 +39,6 @@ class NotificationService {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    // Request permission (Required for iOS, recommended for Android 13+)
     NotificationSettings settings = await _fcm.requestPermission(
       alert: true,
       badge: true,
@@ -48,17 +46,14 @@ class NotificationService {
     );
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      // Get the unique device token
       String? token = await _fcm.getToken();
 
       if (token != null) {
-        // Save it to the user's document in Firestore
         await _db.collection('users').doc(user.uid).set({
           'fcmToken': token,
         }, SetOptions(merge: true));
       }
 
-      // Listen for token refreshes (in case the device assigns a new token later)
       _fcm.onTokenRefresh.listen((newToken) {
         _db.collection('users').doc(user.uid).set({
           'fcmToken': newToken,
@@ -78,13 +73,10 @@ class UserAuthService {
   })  : _auth = auth ?? FirebaseAuth.instance,
         _db = db ?? FirebaseFirestore.instance;
 
-  /// ✅ Generate a system user ID
   static String generateUserId() {
     return "GG-${Random().nextInt(999999).toString().padLeft(6, '0')}-${DateTime.now().year}";
   }
 
-  /// ✅ Register user -> Auth + users/{uid}
-  /// Returns uid
   Future<String> registerUser(UserRegisterData data) async {
     try {
       final cred = await _auth.createUserWithEmailAndPassword(
@@ -114,7 +106,6 @@ class UserAuthService {
         "createdAt": FieldValue.serverTimestamp(),
       });
 
-      // ✅ Capture and save FCM token right after successful registration
       await NotificationService().setupFCMToken();
 
       return uid;
@@ -139,10 +130,6 @@ class UserLoginService {
   })  : _auth = auth ?? FirebaseAuth.instance,
         _db = db ?? FirebaseFirestore.instance;
 
-  /// ✅ Login normal user
-  /// - Auth sign in
-  /// - Must have users/{uid} doc
-  /// Returns uid
   Future<String> loginUser({
     required String email,
     required String password,
@@ -171,7 +158,6 @@ class UserLoginService {
         );
       }
 
-      // ✅ Capture and save FCM token right after successful login
       await NotificationService().setupFCMToken();
 
       return uid;
@@ -185,6 +171,7 @@ class UserLoginService {
     }
   }
 
+  // ✅ Already correctly implemented!
   Future<void> sendPasswordReset(String email) async {
     await _auth.sendPasswordResetEmail(email: email.trim());
   }

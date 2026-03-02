@@ -93,19 +93,88 @@ class _ExpertLoginScreenState extends State<ExpertLoginScreen>
     }
   }
 
-  Future<void> _forgotPassword() async {
-    final email = _emailC.text.trim();
-    if (email.isEmpty) {
-      _snack("Enter your email first, then tap 'Forgot password?'.");
-      return;
-    }
+  // ✅ IMPROVED: Dedicated Forgot Password Dialog UI
+  Future<void> _showForgotPasswordDialog() async {
+    final resetEmailC = TextEditingController(text: _emailC.text);
+    final formKey = GlobalKey<FormState>();
+    bool isSending = false;
 
-    try {
-      await _service.sendPasswordReset(email);
-      _snack("Password reset email sent to $email");
-    } catch (e) {
-      _snack("Reset failed. Please check the email and try again.");
-    }
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Reset Password'),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                        'Enter your expert email address and we will send you a link to reset your password.'),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: resetEmailC,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: InputDecoration(
+                        labelText: 'Email',
+                        prefixIcon: const Icon(Icons.email_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      validator: (v) {
+                        final s = (v ?? '').trim();
+                        if (s.isEmpty) return "Email is required";
+                        if (!s.contains('@') || !s.contains('.')) return "Enter a valid email";
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSending ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSending
+                      ? null
+                      : () async {
+                    if (formKey.currentState?.validate() ?? false) {
+                      setState(() => isSending = true);
+                      try {
+                        await _service.sendPasswordReset(resetEmailC.text.trim());
+                        if (!context.mounted) return;
+                        Navigator.pop(context);
+                        _snack("Password reset email sent to ${resetEmailC.text}");
+                      } catch (e) {
+                        _snack("Reset failed. Please check the email and try again.");
+                        setState(() => isSending = false);
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF009688),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: isSending
+                      ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                      : const Text('Send Link'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _goToExpertRegister() {
@@ -232,10 +301,11 @@ class _ExpertLoginScreenState extends State<ExpertLoginScreen>
 
                               const SizedBox(height: 10),
 
+                              // ✅ IMPROVED: Calls the dialog instead of relying on main text field
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: TextButton(
-                                  onPressed: _loading ? null : _forgotPassword,
+                                  onPressed: _loading ? null : _showForgotPasswordDialog,
                                   child: const Text('Forgot password?'),
                                 ),
                               ),

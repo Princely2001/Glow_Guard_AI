@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'firebase_options.dart';
 import 'User/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 1. Initialize Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // ✅ 2. Initialize App Check using the DEBUG provider so it works on your Emulator
+  await FirebaseAppCheck.instance.activate(
+    androidProvider: AndroidProvider.debug, // CHANGED TO DEBUG
+    appleProvider: AppleProvider.deviceCheck,
   );
 
   runApp(const GlowGuardApp());
