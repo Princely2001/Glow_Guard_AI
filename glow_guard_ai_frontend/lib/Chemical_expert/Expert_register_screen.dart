@@ -19,6 +19,7 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
   final _nameC = TextEditingController();
   final _emailC = TextEditingController();
   final _phoneC = TextEditingController();
+  final _regIdC = TextEditingController(); // ✅ Added Controller for Gov. Registration ID
   final _passC = TextEditingController();
   final _confirmC = TextEditingController();
 
@@ -55,6 +56,7 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
     _nameC.dispose();
     _emailC.dispose();
     _phoneC.dispose();
+    _regIdC.dispose(); // ✅ Dispose new controller
     _passC.dispose();
     _confirmC.dispose();
     super.dispose();
@@ -127,6 +129,7 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
         name: _nameC.text.trim(),
         email: _emailC.text.trim(),
         contactNumber: _phoneC.text.trim(),
+        govRegistrationId: _regIdC.text.trim(), // ✅ Pass the Gov ID
         dateOfBirth: _dob!,
         experienceYears: _exp,
         educationLevel: _highestQualification,
@@ -226,6 +229,19 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
                 keyboardType: TextInputType.phone,
                 decoration: const InputDecoration(labelText: "Contact number", border: OutlineInputBorder(), prefixIcon: Icon(Icons.phone_outlined)),
                 validator: (v) => (v ?? "").trim().isEmpty ? "Contact number is required" : null,
+              ),
+              const SizedBox(height: 12),
+
+              // ✅ Added Gov. Registration ID Field
+              TextFormField(
+                controller: _regIdC,
+                enabled: !_loading,
+                decoration: const InputDecoration(
+                    labelText: "Gov. Registration ID",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.badge_outlined)
+                ),
+                validator: (v) => (v ?? "").trim().isEmpty ? "Registration ID is required" : null,
               ),
               const SizedBox(height: 12),
 

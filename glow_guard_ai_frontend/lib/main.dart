@@ -12,7 +12,7 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // ✅ 2. Initialize App Check using the DEBUG provider so it works on your Emulator
+  // 2. Initialize App Check using the DEBUG provider so it works on your Emulator
   await FirebaseAppCheck.instance.activate(
     androidProvider: AndroidProvider.debug, // CHANGED TO DEBUG
     appleProvider: AppleProvider.deviceCheck,

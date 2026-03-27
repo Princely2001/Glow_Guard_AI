@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'research_tab.dart'; // Import to access ResearchTopic model
+import 'chatbot_tab.dart';  // 👉 REQUIRED IMPORT FOR NAVIGATION TO CHATBOT
 
 class ResearchDetailScreen extends StatelessWidget {
   final ResearchTopic topic;
@@ -75,24 +76,30 @@ class ResearchDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
 
-                  _buildSectionHeader(context, "What it is", Icons.info_outline, topic.accentColor),
-                  _buildContentCard(context, topic.whatItIs),
+                  _buildSectionHeader(context, topic.header1, Icons.info_outline, topic.accentColor),
+                  _buildContentCard(context, topic.content1),
                   const SizedBox(height: 24),
 
-                  _buildSectionHeader(context, "Why it's Harmful", Icons.warning_rounded, Colors.red),
-                  _buildContentCard(context, topic.risks),
+                  _buildSectionHeader(context, topic.header2, Icons.warning_rounded, Colors.red),
+                  _buildContentCard(context, topic.content2),
                   const SizedBox(height: 24),
 
-                  _buildSectionHeader(context, "Common Symptoms", Icons.sick_outlined, Colors.orange),
-                  _buildListCard(context, topic.symptoms),
+                  _buildSectionHeader(context, topic.listHeader, Icons.fact_check_outlined, Colors.orange),
+                  _buildListCard(context, topic.listItems),
                   const SizedBox(height: 24),
 
-                  _buildSectionHeader(context, "How to Check Labels", Icons.search_rounded, Colors.blue),
-                  _buildChips(context, topic.labelKeywords),
+                  _buildSectionHeader(context, topic.chipsHeader, Icons.search_rounded, Colors.blue),
+                  _buildChips(context, topic.chips),
                   const SizedBox(height: 24),
 
-                  _buildSectionHeader(context, "Safe Alternatives", Icons.verified_user_rounded, Colors.green),
-                  _buildContentCard(context, topic.safeAlternatives, isHighlighted: true),
+                  _buildSectionHeader(context, topic.highlightHeader, Icons.verified_user_rounded, Colors.green),
+                  _buildContentCard(context, topic.highlightContent, isHighlighted: true),
+                  const SizedBox(height: 32),
+
+                  // Chatbot integration section
+                  _buildSectionHeader(context, "Discuss with Assistant", Icons.chat_bubble_outline, Colors.deepPurpleAccent),
+                  _buildChatPrompts(context, topic.chatPrompts),
+
                   const SizedBox(height: 40),
                 ],
               ),
@@ -110,10 +117,12 @@ class ResearchDetailScreen extends StatelessWidget {
         children: [
           Icon(icon, color: color, size: 22),
           const SizedBox(width: 8),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
+          Flexible(
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -185,6 +194,42 @@ class ResearchDetailScreen extends StatelessWidget {
           backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
           side: BorderSide.none,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        );
+      }).toList(),
+    );
+  }
+
+  // 👉 This method generates the buttons that navigate to the Chatbot
+  Widget _buildChatPrompts(BuildContext context, List<String> prompts) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: prompts.map((prompt) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12.0),
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              alignment: Alignment.centerLeft,
+              elevation: 0,
+            ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  // Passes the string directly into the ChatbotTab!
+                  builder: (_) => ChatbotTab(initialPrompt: prompt),
+                ),
+              );
+            },
+            icon: const Icon(Icons.auto_awesome, size: 18),
+            label: Text(
+              prompt,
+              style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w500),
+            ),
+          ),
         );
       }).toList(),
     );

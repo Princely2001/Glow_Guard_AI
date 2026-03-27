@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 class ChatbotTab extends StatefulWidget {
-  const ChatbotTab({super.key});
+  // 👉 This allows us to receive the prompt from the ResearchDetailScreen
+  final String? initialPrompt;
+
+  const ChatbotTab({super.key, this.initialPrompt});
 
   @override
   State<ChatbotTab> createState() => _ChatbotTabState();
@@ -20,7 +23,7 @@ class _ChatbotTabState extends State<ChatbotTab> {
     const _UiMsg(
       me: false,
       text:
-      "Hi! I'm GlowGuard Assistant ✨\nI can help you check cosmetic ingredients, bleaching/whitening products, and safety risks.",
+      "Hi! I'm GlowGuard Assistant ✨\nI can help you check cosmetic ingredients, analyze lab reports (COAs), spot fake products, and explain safety risks.",
     ),
   ];
 
@@ -29,7 +32,7 @@ class _ChatbotTabState extends State<ChatbotTab> {
     {
       "role": "assistant",
       "content":
-      "Hi! I'm GlowGuard Assistant. Ask me about cosmetics ingredients or bleaching/whitening products."
+      "Hi! I'm GlowGuard Assistant. Ask me about cosmetics ingredients, reading Certificates of Analysis (COA), identifying counterfeits, or testing methods like HPLC."
     },
   ];
 
@@ -39,35 +42,46 @@ class _ChatbotTabState extends State<ChatbotTab> {
   int _promptSetIndex = 0;
   final List<List<String>> _promptSets = const [
     [
-      "Is hydroquinone safe for skin?",
+      "How can I tell if a cosmetic product is fake?",
+      "Is the gold ring test for mercury real?",
+      "What does 'ND' mean on a lab report?",
       "What are signs of mercury in face creams?",
-      "Check if steroids are used in whitening creams",
-      "Which ingredients should I avoid during pregnancy?",
     ],
     [
-      "What does kojic acid do for skin?",
-      "Is niacinamide safe for daily use?",
-      "Can I mix retinol with vitamin C?",
-      "Which ingredients can irritate sensitive skin?",
+      "How do labs test for hidden steroids?",
+      "What should I look for on a Certificate of Analysis (COA)?",
+      "What does the PAO (12M) symbol mean?",
+      "Is hydroquinone safe for skin?",
     ],
     [
-      "How to identify counterfeit whitening products?",
-      "What are harmful bleaching ingredients?",
+      "Why do fake cosmetics smell bad?",
+      "What is the limit for mercury in cosmetics?",
       "How to read a cosmetic ingredient label?",
       "What are safer alternatives to skin bleaching creams?",
     ],
     [
-      "What side effects can hydroquinone cause?",
-      "Is mercury allowed in cosmetics?",
-      "How long should I use a brightening product?",
+      "What is HPLC testing?",
+      "How do batch codes help find fakes?",
       "What should I do if a cream causes burning or redness?",
+      "Which ingredients can irritate sensitive skin?",
     ],
   ];
 
   // Android emulator: http://10.0.2.2:8081
   // iOS simulator: http://127.0.0.1:8081
   // Real device:    http://<your-pc-lan-ip>:8081
-  static const String _baseUrl = "http://10.0.2.2:8081";
+  static const String _baseUrl = "http://192.168.1.7:8081";
+
+  // 👉 Initialize and auto-send the prompt if it exists
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialPrompt != null && widget.initialPrompt!.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _sendPrompt(widget.initialPrompt!);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -200,6 +214,11 @@ class _ChatbotTabState extends State<ChatbotTab> {
               backgroundColor: Colors.transparent,
               elevation: 0,
               titleSpacing: 14,
+              // Check if we pushed onto this screen, if so show back button
+              leading: Navigator.canPop(context) ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.pop(context),
+              ) : null,
               title: Row(
                 children: [
                   Container(

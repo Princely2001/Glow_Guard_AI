@@ -1,18 +1,13 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/test_models.dart';
-import '../models/results_store.dart';
 import '../widgets/common_widgets.dart';
 import '../Chemical_expert/instructions_screen.dart';
-
-// ✅ ML & Service Imports
-import '../services/Chemical_expert/ml/ingredient_classifier.dart';
 import '../Chemical_expert/prediction_result_screen.dart';
-import '../services/Chemical_expert/chemical_test_private_service.dart';
+import '../services/Chemical_expert/chemical_test_controller.dart'; // Import the new controller
 
 class StartTestScreen extends StatefulWidget {
   final String? requestedUserId;
@@ -29,156 +24,56 @@ class StartTestScreen extends StatefulWidget {
 }
 
 class _StartTestScreenState extends State<StartTestScreen> {
-  final _picker = ImagePicker();
-  final ChemicalTestPrivateService _storageService = ChemicalTestPrivateService();
-
-  TestType _type = TestType.mercury;
-  File? _before;
-  File? _after;
-
-  bool _busy = false;
-  final IngredientClassifier _clf = IngredientClassifier();
-  bool _modelReady = false;
-  MlPrediction? _lastPrediction;
-
-  Uint8List? _mergedPreviewPng;
-  int _mergeJob = 0;
+  // Instantiate the controller once for this screen
+  late final ChemicalTestController _controller;
 
   @override
   void initState() {
     super.initState();
-    _loadModel();
-  }
-
-  Future<void> _loadModel() async {
-    try {
-      await _clf.load(threads: 2);
-      if (!mounted) return;
-      setState(() => _modelReady = true);
-    } catch (e) {
-      debugPrint('Model load failed: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Model load failed: $e')));
-      }
-    }
+    _controller = ChemicalTestController();
   }
 
   @override
   void dispose() {
-    _clf.dispose();
+    _controller.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickBefore(ImageSource src) async {
-    final x = await _picker.pickImage(source: src);
-    if (x == null) return;
-    setState(() => _before = File(x.path));
-    await _updateMergedPreview();
-  }
-
-  Future<void> _pickAfter(ImageSource src) async {
-    final x = await _picker.pickImage(source: src);
-    if (x == null) return;
-    setState(() => _after = File(x.path));
-    await _updateMergedPreview();
-  }
-
-  Future<void> _updateMergedPreview() async {
-    if (_before == null || _after == null) return;
-    final job = ++_mergeJob;
-    try {
-      final bytes = await _clf.buildMergedPreviewPng(before: _before!, after: _after!);
-      if (!mounted || job != _mergeJob) return;
-      setState(() => _mergedPreviewPng = bytes);
-    } catch (e) {
-      debugPrint('Preview merge failed: $e');
-    }
   }
 
   String _testTypeLabel(TestType t) => t.toString().split('.').last.toUpperCase();
 
-  String _prettyProbs(MlPrediction p) {
-    final probs = p.probs.map((v) => (v * 100).toStringAsFixed(1)).toList();
-    if (probs.length == 4) {
-      return 'Safe ${probs[0]}% | HQ ${probs[1]}% | Hg ${probs[2]}% | Steroids ${probs[3]}%';
-    }
-    return probs.join(' , ');
-  }
-
-  Future<void> _analyze() async {
-    if (_before == null || _after == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add BOTH Before and After photos.')));
+  Future<void> _handleAnalyze() async {
+    if (_controller.before == null || _controller.after == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add BOTH Before and After photos.')),
+      );
       return;
     }
-
-    if (!_modelReady || !_clf.isLoaded) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ML model is not ready.')));
-      return;
-    }
-
-    setState(() {
-      _busy = true;
-      _lastPrediction = null;
-    });
 
     try {
-      final pred = await _clf.predictMergedBeforeAfter(before: _before!, after: _after!);
+      final pred = await _controller.analyze();
 
-      final now = DateTime.now();
-      final isSafe = pred.label.toLowerCase().trim() == 'safe';
-      final mappedOutcome = isSafe
-          ? TestOutcome.notDetected
-          : (pred.isUnclear ? TestOutcome.detected : TestOutcome.detected);
-
-      final localResult = TestResult(
-        id: now.millisecondsSinceEpoch.toString(),
-        time: now,
-        type: _type,
-        outcome: mappedOutcome,
-        confidence: (pred.confidence * 100).round(),
-        note: pred.isUnclear
-            ? 'Model: ${pred.label} (Unclear: low confidence / close classes)'
-            : 'Model: ${pred.label}',
-        beforePath: _before!.path,
-        afterPath: _after!.path,
-      );
-      addResult(localResult);
-
-      if (!mounted) return;
-      setState(() {
-        _busy = false;
-        _lastPrediction = pred;
-      });
-
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PredictionResultScreen(
-            prediction: pred,
-            testType: _type,
-            before: _before!,
-            after: _after!,
-            mergedPreviewPng: _mergedPreviewPng,
-            onSaveToDatabase: () async {
-              return await _storageService.saveChemicalTestPrivate(
-                requestedUserId: widget.requestedUserId ?? "unknown_user",
-                requestedDateTime: DateTime.now(),
-                testType: _type,
-                prediction: pred,
-                before: _before!,
-                after: _after!,
-                mergedPreviewPng: _mergedPreviewPng,
+      if (pred != null && mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PredictionResultScreen(
+              prediction: pred,
+              testType: _controller.type,
+              before: _controller.before!,
+              after: _controller.after!,
+              mergedPreviewPng: _controller.mergedPreviewPng,
+              onSaveToDatabase: () => _controller.saveToDatabase(
+                userId: widget.requestedUserId ?? "unknown_user",
                 appointmentId: widget.appointmentId,
-              );
-            },
+              ),
+            ),
           ),
-        ),
-      );
+        );
+      }
     } catch (e) {
-      debugPrint('Prediction failed: $e');
-      if (!mounted) return;
-      setState(() => _busy = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
     }
   }
 
@@ -197,76 +92,97 @@ class _StartTestScreenState extends State<StartTestScreen> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          ModernCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      // ListenableBuilder listens to the controller and rebuilds the UI when state changes
+      body: ListenableBuilder(
+          listenable: _controller,
+          builder: (context, _) {
+            return ListView(
+              padding: const EdgeInsets.all(16),
               children: [
-                Text('Choose test type', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 10, runSpacing: 10,
-                  children: TestType.values.map((t) {
-                    final selected = t == _type;
-                    return ChoiceChip(
-                      selected: selected,
-                      label: Text(_testTypeLabel(t)),
-                      onSelected: (_) => setState(() => _type = t),
-                    );
-                  }).toList(),
+                ModernCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Choose test type', style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 10, runSpacing: 10,
+                        children: TestType.values.map((t) {
+                          return ChoiceChip(
+                            selected: t == _controller.type,
+                            label: Text(_testTypeLabel(t)),
+                            onSelected: (_) => _controller.setTestType(t),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Icon(
+                              _controller.modelReady ? Icons.check_circle : Icons.hourglass_top,
+                              size: 18,
+                              color: _controller.modelReady ? cs.primary : cs.onSurfaceVariant
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                              _controller.modelReady ? 'ML model ready' : 'Loading ML model...',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Icon(_modelReady ? Icons.check_circle : Icons.hourglass_top, size: 18, color: _modelReady ? cs.primary : cs.onSurfaceVariant),
-                    const SizedBox(width: 8),
-                    Text(_modelReady ? 'ML model ready' : 'Loading ML model...', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant)),
-                  ],
+                const SizedBox(height: 14),
+
+                Text('Before photo (LEFT)', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                PhotoPickerCard(
+                    file: _controller.before,
+                    onCamera: () => _controller.pickBefore(ImageSource.camera),
+                    onGallery: () => _controller.pickBefore(ImageSource.gallery)
                 ),
+                const SizedBox(height: 14),
+
+                Text('After photo (RIGHT)', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                PhotoPickerCard(
+                    file: _controller.after,
+                    onCamera: () => _controller.pickAfter(ImageSource.camera),
+                    onGallery: () => _controller.pickAfter(ImageSource.gallery)
+                ),
+
+                if (_controller.before != null && _controller.after != null) ...[
+                  const SizedBox(height: 14),
+                  Text('Combined Preview', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  _MergedPreviewCard(bytes: _controller.mergedPreviewPng),
+                ],
+
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: (_controller.busy || !_controller.modelReady) ? null : _handleAnalyze,
+                  icon: _controller.busy
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.auto_awesome),
+                  label: Text(_controller.busy ? 'Analyzing...' : 'Analyze with ML'),
+                ),
+
+                if (_controller.lastPrediction != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Last: ${_controller.lastPrediction!.label} • ${(100 * _controller.lastPrediction!.confidence).toStringAsFixed(1)}%${_controller.lastPrediction!.isUnclear ? ' (Unclear)' : ''}',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ],
               ],
-            ),
-          ),
-          const SizedBox(height: 14),
-
-          Text('Before photo (LEFT)', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          PhotoPickerCard(file: _before, onCamera: () => _pickBefore(ImageSource.camera), onGallery: () => _pickBefore(ImageSource.gallery)),
-          const SizedBox(height: 14),
-
-          Text('After photo (RIGHT)', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          PhotoPickerCard(file: _after, onCamera: () => _pickAfter(ImageSource.camera), onGallery: () => _pickAfter(ImageSource.gallery)),
-
-          if (_before != null && _after != null) ...[
-            const SizedBox(height: 14),
-            Text('Combined Preview', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            _MergedPreviewCard(bytes: _mergedPreviewPng),
-          ],
-
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: (_busy || !_modelReady) ? null : _analyze,
-            icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome),
-            label: Text(_busy ? 'Analyzing...' : 'Analyze with ML'),
-          ),
-
-          if (_lastPrediction != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              'Last: ${_lastPrediction!.label} • ${(100 * _lastPrediction!.confidence).toStringAsFixed(1)}%${_lastPrediction!.isUnclear ? ' (Unclear)' : ''}',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          ],
-        ],
+            );
+          }
       ),
     );
   }
 }
 
-// ✅ Updated helper for Wide Images in Test Screen
 class _MergedPreviewCard extends StatelessWidget {
   final Uint8List? bytes;
   const _MergedPreviewCard({required this.bytes});
@@ -275,7 +191,6 @@ class _MergedPreviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Container(
-      // Height 180 to keep approx 2:1 ratio suitable for 224x448
       height: 180,
       width: double.infinity,
       decoration: BoxDecoration(
@@ -287,7 +202,7 @@ class _MergedPreviewCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         child: bytes == null
             ? const Center(child: CircularProgressIndicator())
-            : Image.memory(bytes!, fit: BoxFit.contain), // Use contain to show full width
+            : Image.memory(bytes!, fit: BoxFit.contain),
       ),
     );
   }

@@ -72,11 +72,15 @@ class AdminVerificationScreen extends StatelessWidget {
               final degree = (expert['educationLevel'] ?? "N/A").toString();
               final expYears = (expert['chemicalTestingExperienceYears'] ?? 0).toString();
 
+              // ✅ Extract the new govRegistrationId
+              final govRegId = (expert['govRegistrationId'] ?? "N/A").toString();
+
               return _ModernExpertCard(
                 name: name,
                 email: email,
                 degree: degree,
                 expYears: expYears,
+                govRegId: govRegId, // ✅ Pass to the card
                 onReview: () {
                   Navigator.push(
                     context,
@@ -104,6 +108,7 @@ class _ModernExpertCard extends StatelessWidget {
     required this.email,
     required this.degree,
     required this.expYears,
+    required this.govRegId, // ✅ Added Gov Reg ID requirement
     required this.onReview,
     required this.theme,
   });
@@ -112,6 +117,7 @@ class _ModernExpertCard extends StatelessWidget {
   final String email;
   final String degree;
   final String expYears;
+  final String govRegId; // ✅ Field for Gov Reg ID
   final VoidCallback onReview;
   final ThemeData theme;
 
@@ -185,9 +191,9 @@ class _ModernExpertCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  _StatusPill(
+                  const _StatusPill(
                     text: "PENDING",
-                    color: const Color(0xFFF59E0B),
+                    color: Color(0xFFF59E0B),
                   ),
                 ],
               ),
@@ -206,6 +212,11 @@ class _ModernExpertCard extends StatelessWidget {
                   _InfoChip(
                     icon: Icons.timeline_outlined,
                     label: "$expYears yrs",
+                  ),
+                  // ✅ Added Chip for Government Registration ID
+                  _InfoChip(
+                    icon: Icons.badge_outlined,
+                    label: "ID: $govRegId",
                   ),
                 ],
               ),

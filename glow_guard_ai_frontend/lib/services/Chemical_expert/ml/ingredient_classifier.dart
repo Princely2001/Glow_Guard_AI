@@ -101,6 +101,9 @@ class IngredientClassifier {
     final interpreter = _interpreter;
     if (interpreter == null) throw StateError('Model not loaded. Call load() first.');
 
+    // ⏱️ START NFR03 PERFORMANCE TRACKING
+    final stopwatch = Stopwatch()..start();
+
     // 1. Prepare Image: 224x448
     final merged = await _mergeSideBySide(
         before: before,
@@ -119,6 +122,11 @@ class IngredientClassifier {
 
     // 4. Run Inference
     interpreter.run(input, output);
+
+    // ⏱️ STOP NFR03 PERFORMANCE TRACKING AND LOG
+    stopwatch.stop();
+    // ignore: avoid_print
+    print('⏱️ AI PERFORMANCE TEST (NFR03): Inference took ${stopwatch.elapsedMilliseconds} milliseconds.');
 
     // 5. Process Results
     final raw = output[0].map((e) => e.toDouble()).toList();

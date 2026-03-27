@@ -72,6 +72,9 @@ class _AdminExpertDetailsScreenState extends State<AdminExpertDetailsScreen> {
     final contact = _displayOrNA(expert['contactNumber']);
     final docUrl = expert['credentialUrl']?.toString();
 
+    // ✅ Added Government Registration ID extraction
+    final govRegId = _displayOrNA(expert['govRegistrationId']);
+
     final hasDoc = _isHttpUrl(docUrl);
     final canApprove = !hasDoc || _hasViewedDocument;
 
@@ -98,6 +101,8 @@ class _AdminExpertDetailsScreenState extends State<AdminExpertDetailsScreen> {
                 _InfoRow(label: "Qualification", value: qualification),
                 _InfoRow(label: "Experience", value: "$experience years"),
                 _InfoRow(label: "Contact", value: contact),
+                // ✅ Display the Government Registration ID
+                _InfoRow(label: "Gov. Reg. ID", value: govRegId),
               ],
             ),
           ),

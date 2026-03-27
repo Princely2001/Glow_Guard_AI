@@ -1,19 +1,8 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../widgets/common_widgets.dart';
-import '../services/User/report_service.dart';
-// ✅ Import the new public database screen
 import 'public_hazard_reports_screen.dart';
-
-// Class to hold data for each specific timeline stage
-class TimelineStepData {
-  String sideEffects = "";
-  double severity = 1.0;
-  File? image;
-
-  bool get hasData => sideEffects.isNotEmpty || severity > 1.0 || image != null;
-}
+import '../services/User/product_report_controller.dart'; // Import the new controller
 
 class DangerousProductReportScreen extends StatefulWidget {
   const DangerousProductReportScreen({super.key});
@@ -23,120 +12,34 @@ class DangerousProductReportScreen extends StatefulWidget {
 }
 
 class _DangerousProductReportScreenState extends State<DangerousProductReportScreen> {
-  // State Variables
-  bool _isAnonymous = true;
-  int _currentTimelineStep = 0;
-  bool _isLoading = false;
-
-  // Controllers
-  final TextEditingController _productNameController = TextEditingController();
-  final TextEditingController _brandController = TextEditingController();
-  final TextEditingController _sideEffectsController = TextEditingController();
-
-  // Services
-  final ImagePicker _picker = ImagePicker();
-  final ReportService _reportService = ReportService();
-
-  final List<String> _timelineLabels = [
-    "First 3 Days", "First Week", "Second Week", "Third Week", "One Month", "Three Months"
-  ];
-
-  // Map to hold individual data for each timeline step
-  final Map<int, TimelineStepData> _timelineData = {};
+  late final ProductReportController _controller;
 
   @override
   void initState() {
     super.initState();
-    // Initialize data storage for each step
-    for (int i = 0; i < _timelineLabels.length; i++) {
-      _timelineData[i] = TimelineStepData();
-    }
+    _controller = ProductReportController();
   }
 
   @override
   void dispose() {
-    // Save final text state before disposing if needed
-    _productNameController.dispose();
-    _brandController.dispose();
-    _sideEffectsController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
-  // --- UI Logic: Switching Steps ---
-  void _changeTimelineStep(int index) {
-    // Save current step's text data before switching
-    _timelineData[_currentTimelineStep]!.sideEffects = _sideEffectsController.text;
-
-    setState(() {
-      _currentTimelineStep = index;
-      // Load the new step's text data
-      _sideEffectsController.text = _timelineData[index]!.sideEffects;
-    });
-  }
-
-  // --- Image Picking Logic ---
-  Future<void> _pickImage(ImageSource source) async {
+  void _handleImagePick(ImageSource source) async {
     try {
-      final XFile? pickedFile = await _picker.pickImage(
-        source: source,
-        imageQuality: 80,
-      );
-      if (pickedFile != null) {
-        setState(() {
-          _timelineData[_currentTimelineStep]!.image = File(pickedFile.path);
-        });
-      }
+      await _controller.pickImage(source);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to pick image: $e")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
     }
   }
 
-  // --- Submission Logic ---
-  Future<void> _submitReport() async {
-    if (_productNameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter the product name", style: TextStyle(color: Colors.white))),
-      );
-      return;
-    }
-
-    // Save the text of the currently active step
-    _timelineData[_currentTimelineStep]!.sideEffects = _sideEffectsController.text.trim();
-
-    // Compile timeline data that actually has user input
-    List<Map<String, dynamic>> compiledTimeline = [];
-    for (int i = 0; i < _timelineLabels.length; i++) {
-      final data = _timelineData[i]!;
-      if (data.hasData) {
-        compiledTimeline.add({
-          'stage': _timelineLabels[i],
-          'sideEffects': data.sideEffects,
-          'severity': data.severity,
-          'imageFile': data.image,
-        });
-      }
-    }
-
-    if (compiledTimeline.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please provide timeline details for at least one stage.", style: TextStyle(color: Colors.white))),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
+  Future<void> _handleSubmit() async {
     try {
-      await _reportService.submitDangerousProductReport(
-        productName: _productNameController.text.trim(),
-        brand: _brandController.text.trim(),
-        isAnonymous: _isAnonymous,
-        timelineData: compiledTimeline,
-      );
-
-      if (mounted) {
+      final success = await _controller.submitReport();
+      if (success && mounted) {
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -167,12 +70,10 @@ class _DangerousProductReportScreenState extends State<DangerousProductReportScr
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e")),
+          SnackBar(
+            content: Text(e.toString().replaceAll("Exception: ", ""), style: const TextStyle(color: Colors.white)),
+          ),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
       }
     }
   }
@@ -189,106 +90,102 @@ class _DangerousProductReportScreenState extends State<DangerousProductReportScr
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.deepOrange))
-          : SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // --- Privacy Reassurance ---
-            _buildPrivacyHeader(cs),
-            const SizedBox(height: 16),
+      body: ListenableBuilder(
+          listenable: _controller,
+          builder: (context, child) {
+            if (_controller.isLoading) {
+              return const Center(child: CircularProgressIndicator(color: Colors.deepOrange));
+            }
 
-            // ✅ NEW: Entry point to view approved hazard reports
-            _buildPublicDatabaseBanner(context, cs),
-            const SizedBox(height: 24),
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildPrivacyHeader(cs),
+                  const SizedBox(height: 16),
+                  _buildPublicDatabaseBanner(context, cs),
+                  const SizedBox(height: 24),
 
-            // --- Product Identity ---
-            Text("Product Details", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            ModernCard(
-              child: Padding(
-                padding: const EdgeInsets.all(4.0),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _productNameController,
-                      decoration: InputDecoration(
-                        labelText: "Product Name *",
-                        prefixIcon: const Icon(Icons.shopping_bag_outlined),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        filled: true,
-                        fillColor: cs.surface,
+                  Text("Product Details", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  ModernCard(
+                    child: Padding(
+                      padding: const EdgeInsets.all(4.0),
+                      child: Column(
+                        children: [
+                          TextField(
+                            controller: _controller.productNameController,
+                            decoration: InputDecoration(
+                              labelText: "Product Name *",
+                              prefixIcon: const Icon(Icons.shopping_bag_outlined),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              filled: true,
+                              fillColor: cs.surface,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: _controller.brandController,
+                            decoration: InputDecoration(
+                              labelText: "Brand / Manufacturer",
+                              prefixIcon: const Icon(Icons.business_outlined),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              filled: true,
+                              fillColor: cs.surface,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _brandController,
-                      decoration: InputDecoration(
-                        labelText: "Brand / Manufacturer",
-                        prefixIcon: const Icon(Icons.business_outlined),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        filled: true,
-                        fillColor: cs.surface,
+                  ),
+                  const SizedBox(height: 28),
+
+                  Row(
+                    children: [
+                      const Icon(Icons.timeline_rounded, color: Colors.deepOrange),
+                      const SizedBox(width: 8),
+                      Text("Reaction Timeline", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4.0, bottom: 16.0),
+                    child: Text("Document your experience over time. Select a stage to add details.", style: TextStyle(color: Colors.grey)),
+                  ),
+                  _buildTimelineStepper(cs),
+                  const SizedBox(height: 24),
+
+                  _buildStepDetailsCard(cs),
+                  const SizedBox(height: 32),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: FilledButton.icon(
+                      onPressed: _handleSubmit,
+                      icon: const Icon(Icons.shield_rounded),
+                      label: const Text("Submit Official Report", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.deepOrange.shade600,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        elevation: 2,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 32),
+                ],
               ),
-            ),
-            const SizedBox(height: 28),
-
-            // --- Experience Timeline ---
-            Row(
-              children: [
-                const Icon(Icons.timeline_rounded, color: Colors.deepOrange),
-                const SizedBox(width: 8),
-                Text("Reaction Timeline", style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const Padding(
-              padding: EdgeInsets.only(top: 4.0, bottom: 16.0),
-              child: Text("Document your experience over time. Select a stage to add details.", style: TextStyle(color: Colors.grey)),
-            ),
-            _buildTimelineStepper(cs),
-            const SizedBox(height: 24),
-
-            // --- Step Specific Details (Updates when timeline is tapped) ---
-            _buildStepDetailsCard(cs),
-            const SizedBox(height: 32),
-
-            // --- Submit Button ---
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: FilledButton.icon(
-                onPressed: _isLoading ? null : _submitReport,
-                icon: const Icon(Icons.shield_rounded),
-                label: const Text("Submit Official Report", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                style: FilledButton.styleFrom(
-                  backgroundColor: Colors.deepOrange.shade600,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  elevation: 2,
-                ),
-              ),
-            ),
-            const SizedBox(height: 32),
-          ],
-        ),
+            );
+          }
       ),
     );
   }
 
-  // ✅ NEW WIDGET: Banner to navigate to PublicHazardReportsScreen
   Widget _buildPublicDatabaseBanner(BuildContext context, ColorScheme cs) {
     return InkWell(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const PublicHazardReportsScreen()),
-        );
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const PublicHazardReportsScreen()));
       },
       borderRadius: BorderRadius.circular(16),
       child: Container(
@@ -348,16 +245,13 @@ class _DangerousProductReportScreenState extends State<DangerousProductReportScr
               ),
             ],
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8.0),
-            child: Divider(),
-          ),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 8.0), child: Divider()),
           SwitchListTile(
             title: const Text("Report Anonymously", style: TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(_isAnonymous ? "Your identity is hidden" : "Your ID will be visible to experts", style: const TextStyle(fontSize: 12)),
-            value: _isAnonymous,
+            subtitle: Text(_controller.isAnonymous ? "Your identity is hidden" : "Your ID will be visible to experts", style: const TextStyle(fontSize: 12)),
+            value: _controller.isAnonymous,
             activeColor: Colors.teal.shade700,
-            onChanged: (v) => setState(() => _isAnonymous = v),
+            onChanged: _controller.toggleAnonymous,
             contentPadding: EdgeInsets.zero,
           )
         ],
@@ -370,16 +264,16 @@ class _DangerousProductReportScreenState extends State<DangerousProductReportScr
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
       child: Row(
-        children: List.generate(_timelineLabels.length, (index) {
-          final isActive = index == _currentTimelineStep;
-          // Check if this specific step has data (to show a completed checkmark)
-          // We must check current text controller for the active step, and the map for others
+        children: List.generate(_controller.timelineLabels.length, (index) {
+          final isActive = index == _controller.currentTimelineStep;
+          final stepData = _controller.timelineData[index]!;
+
           final stepHasData = isActive
-              ? (_sideEffectsController.text.isNotEmpty || _timelineData[index]!.severity > 1.0 || _timelineData[index]!.image != null)
-              : _timelineData[index]!.hasData;
+              ? (_controller.sideEffectsController.text.isNotEmpty || stepData.severity > 1.0 || stepData.image != null)
+              : stepData.hasData;
 
           return GestureDetector(
-            onTap: () => _changeTimelineStep(index),
+            onTap: () => _controller.changeTimelineStep(index),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               margin: const EdgeInsets.only(right: 12),
@@ -400,7 +294,7 @@ class _DangerousProductReportScreenState extends State<DangerousProductReportScr
                     const SizedBox(width: 6),
                   ],
                   Text(
-                    _timelineLabels[index],
+                    _controller.timelineLabels[index],
                     style: TextStyle(
                       color: isActive ? Colors.deepOrange.shade800 : cs.onSurfaceVariant,
                       fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
@@ -416,7 +310,7 @@ class _DangerousProductReportScreenState extends State<DangerousProductReportScr
   }
 
   Widget _buildStepDetailsCard(ColorScheme cs) {
-    final currentData = _timelineData[_currentTimelineStep]!;
+    final currentData = _controller.timelineData[_controller.currentTimelineStep]!;
 
     return ModernCard(
       child: Container(
@@ -433,12 +327,9 @@ class _DangerousProductReportScreenState extends State<DangerousProductReportScr
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.deepOrange,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                  decoration: BoxDecoration(color: Colors.deepOrange, borderRadius: BorderRadius.circular(8)),
                   child: Text(
-                    _timelineLabels[_currentTimelineStep],
+                    _controller.timelineLabels[_controller.currentTimelineStep],
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                   ),
                 ),
@@ -448,21 +339,17 @@ class _DangerousProductReportScreenState extends State<DangerousProductReportScr
             ),
             const SizedBox(height: 20),
             TextField(
-              controller: _sideEffectsController,
+              controller: _controller.sideEffectsController,
               maxLines: 4,
               onChanged: (val) {
-                // Trigger rebuild if it's the first character typed to update the checkmark in timeline
-                if (val.length == 1 || val.isEmpty) setState(() {});
+                if (val.length == 1 || val.isEmpty) _controller.notifyTyping();
               },
               decoration: InputDecoration(
                 hintText: "Describe side effects (e.g., severe redness, peeling, hyperpigmentation...)",
                 hintStyle: TextStyle(color: Colors.grey.shade400),
                 filled: true,
                 fillColor: cs.surface,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
               ),
             ),
             const SizedBox(height: 24),
@@ -498,7 +385,7 @@ class _DangerousProductReportScreenState extends State<DangerousProductReportScr
                 min: 1,
                 max: 5,
                 divisions: 4,
-                onChanged: (v) => setState(() => currentData.severity = v),
+                onChanged: _controller.updateSeverity,
               ),
             ),
             const Padding(
@@ -512,13 +399,10 @@ class _DangerousProductReportScreenState extends State<DangerousProductReportScr
               ),
             ),
             const SizedBox(height: 24),
-
-            // Using PhotoPickerCard and connecting the ImagePicker logic
-            // File passed is specifically the image for the *current* timeline stage
             PhotoPickerCard(
               file: currentData.image,
-              onCamera: () => _pickImage(ImageSource.camera),
-              onGallery: () => _pickImage(ImageSource.gallery),
+              onCamera: () => _handleImagePick(ImageSource.camera),
+              onGallery: () => _handleImagePick(ImageSource.gallery),
             ),
           ],
         ),

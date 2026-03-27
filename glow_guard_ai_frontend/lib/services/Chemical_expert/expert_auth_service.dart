@@ -8,6 +8,7 @@ class ExpertRegisterData {
   final String name;
   final String email;
   final String contactNumber;
+  final String govRegistrationId; // ✅ Added Government Registration ID
   final DateTime dateOfBirth;
   final int experienceYears;
   final String educationLevel;
@@ -20,6 +21,7 @@ class ExpertRegisterData {
     required this.name,
     required this.email,
     required this.contactNumber,
+    required this.govRegistrationId, // ✅ Required parameter
     required this.dateOfBirth,
     required this.experienceYears,
     required this.educationLevel,
@@ -80,6 +82,7 @@ class ExpertAuthService {
       "callingName": data.callingName,
       "email": data.email.trim(),
       "contactNumber": data.contactNumber.trim(),
+      "govRegistrationId": data.govRegistrationId.trim(), // ✅ Save Gov ID to Firestore
       "dateOfBirth": Timestamp.fromDate(data.dateOfBirth),
       "chemicalTestingExperienceYears": data.experienceYears,
       "educationLevel": data.educationLevel,

@@ -8,20 +8,21 @@ import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf_cors_headers/shelf_cors_headers.dart';
 
 void main(List<String> args) async {
+  // 1. DYNAMIC PORT: Cloud providers like Render/Railway assign a port via environment variables
   final port = int.tryParse(Platform.environment['PORT'] ?? '8081') ?? 8081;
 
-  // Uses the OPENROUTER_API_KEY environment variable if set.
-  // Otherwise, falls back to your hardcoded key.
-  final apiKey = Platform.environment['OPENROUTER_API_KEY'] ??
-      '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';
+  // 2. SECURITY: Fetch API key from environment variables (DO NOT hardcode keys here)
+  final apiKey = Platform.environment['OPENROUTER_API_KEY'] ?? '';
 
   if (apiKey.trim().isEmpty) {
-    stderr.writeln('ERROR: Missing OPENROUTER_API_KEY.');
+    stderr.writeln('ERROR: OPENROUTER_API_KEY environment variable is not set.');
+    // In production, we exit if the API key is missing to prevent silent failures
     exit(1);
   }
 
   final router = Router();
 
+  // Health check for Cloud Providers to see if your service is "Alive"
   router.get('/health', (Request req) {
     return Response.ok(jsonEncode({'ok': true}), headers: {
       HttpHeaders.contentTypeHeader: 'application/json',
@@ -51,49 +52,39 @@ You are GlowGuard Assistant, focused ONLY on cosmetics, skincare, bleaching/whit
 - Keep answers concise (3–8 bullet points max) and practical.
 ''';
 
-      // 1. Prepare messages array for OpenRouter (OpenAI format)
       final messages = <Map<String, String>>[
         {'role': 'system', 'content': systemPrompt},
       ];
 
-      // 2. Add History
       for (final item in historyList) {
         if (item is Map) {
           final role = (item['role'] ?? '').toString();
           final content = (item['content'] ?? '').toString();
-
           if (content.trim().isNotEmpty) {
             messages.add({'role': role, 'content': content});
           }
         }
       }
 
-      // Safeguard: Ensure the latest user message is in the array if the frontend
-      // didn't already append it to the history list.
       if (messages.isEmpty || messages.last['content'] != message) {
         messages.add({'role': 'user', 'content': message});
       }
 
-      // 3. Send request to OpenRouter API
       final url = Uri.parse('https://openrouter.ai/api/v1/chat/completions');
       final response = await http.post(
         url,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $apiKey',
-          // Optional OpenRouter headers to identify your app
-          'HTTP-Referer': 'http://localhost:8081',
           'X-Title': 'GlowGuard Backend',
         },
         body: jsonEncode({
-          // ✅ CORRECTED: Added the ":free" suffix to the model ID
           'model': 'arcee-ai/trinity-large-preview:free',
           'messages': messages,
         }),
       );
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        print('OpenRouter Error HTTP ${response.statusCode}: ${response.body}');
         return Response(502,
             body: jsonEncode({
               'error': 'Error from AI provider',
@@ -102,27 +93,17 @@ You are GlowGuard Assistant, focused ONLY on cosmetics, skincare, bleaching/whit
             headers: {HttpHeaders.contentTypeHeader: 'application/json'});
       }
 
-      // 4. Parse response
       final decoded = jsonDecode(response.body) as Map<String, dynamic>;
       final choices = decoded['choices'] as List?;
       final reply = choices?.isNotEmpty == true
           ? (choices![0]['message']?['content'] ?? '').toString().trim()
           : '';
 
-      if (reply.isEmpty) {
-        return Response(
-          502,
-          body: jsonEncode({'error': 'Empty reply from model'}),
-          headers: {HttpHeaders.contentTypeHeader: 'application/json'},
-        );
-      }
-
       return Response.ok(
         jsonEncode({'reply': reply}),
         headers: {HttpHeaders.contentTypeHeader: 'application/json'},
       );
     } catch (e) {
-      print('Server Error: $e');
       return Response(
         500,
         body: jsonEncode({'error': 'Server error', 'details': e.toString()}),
@@ -133,9 +114,10 @@ You are GlowGuard Assistant, focused ONLY on cosmetics, skincare, bleaching/whit
 
   final handler = Pipeline()
       .addMiddleware(logRequests())
-      .addMiddleware(corsHeaders())
+      .addMiddleware(corsHeaders()) // Allows your Flutter app to talk to this server
       .addHandler(router.call);
 
+  // 3. ANY IPV4: Crucial for cloud hosting so the service can accept external traffic
   final server = await shelf_io.serve(handler, InternetAddress.anyIPv4, port);
-  print('✅ GlowGuard (Arcee AI Trinity via OpenRouter) backend running on http://${server.address.host}:${server.port}');
+  print('✅ GlowGuard Cloud Backend running on port ${server.port}');
 }
