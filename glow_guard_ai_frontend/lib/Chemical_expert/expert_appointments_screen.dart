@@ -39,7 +39,7 @@ class ExpertAppointmentsScreen extends StatelessWidget {
             snap.data?.docs ?? const [],
           );
 
-          // ✅ Sort locally
+          // Sort locally
           docs.sort((a, b) {
             final ad = a.data();
             final bd = b.data();
@@ -206,7 +206,7 @@ class ExpertAppointmentsScreen extends StatelessWidget {
   }
 }
 
-/// ✅ Details screen: appointment + user contact + "Do Chemical Test" button
+// Details screen: appointment + user contact + "Do Chemical Test" button
 class ExpertAppointmentDetailsScreen extends StatefulWidget {
   final String appointmentId;
   final Map<String, dynamic> appointmentData;
@@ -377,7 +377,7 @@ class _ExpertAppointmentDetailsScreenState
 
           const SizedBox(height: 14),
 
-          // ✅ Contact section
+          // Contact section
           SectionCard(
             title: "User Contact",
             icon: Icons.person_outline,
@@ -415,7 +415,7 @@ class _ExpertAppointmentDetailsScreenState
 
           const SizedBox(height: 14),
 
-          // ✅ Button → StartTestScreen
+          // Button → StartTestScreen
           SectionCard(
             title: "Chemical Test",
             icon: Icons.science_outlined,

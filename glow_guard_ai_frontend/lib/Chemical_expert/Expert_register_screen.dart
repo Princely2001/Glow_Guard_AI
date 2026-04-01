@@ -19,7 +19,7 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
   final _nameC = TextEditingController();
   final _emailC = TextEditingController();
   final _phoneC = TextEditingController();
-  final _regIdC = TextEditingController(); // ✅ Added Controller for Gov. Registration ID
+  final _regIdC = TextEditingController(); // Added Controller for Gov. Registration ID
   final _passC = TextEditingController();
   final _confirmC = TextEditingController();
 
@@ -31,7 +31,7 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
   final _titles = const ["Dr.", "Mr.", "Ms.", "Mrs.", "Prof."];
   String _title = "Dr.";
 
-  // ✅ Added Sri Lankan Districts
+  //  Added Sri Lankan Districts
   final _sriLankanDistricts = const [
     "Ampara", "Anuradhapura", "Badulla", "Batticaloa", "Colombo",
     "Galle", "Gampaha", "Hambantota", "Jaffna", "Kalutara",
@@ -39,7 +39,7 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
     "Matale", "Matara", "Moneragala", "Mullaitivu", "Nuwara Eliya",
     "Polonnaruwa", "Puttalam", "Ratnapura", "Trincomalee", "Vavuniya"
   ];
-  String? _selectedDistrict; // ✅ State variable for location
+  String? _selectedDistrict; //  State variable for location
 
   final _highestQualifications = const [
     "BSc (First Class / 1st Class Honours)",
@@ -56,7 +56,7 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
     _nameC.dispose();
     _emailC.dispose();
     _phoneC.dispose();
-    _regIdC.dispose(); // ✅ Dispose new controller
+    _regIdC.dispose(); //  Dispose new controller
     _passC.dispose();
     _confirmC.dispose();
     super.dispose();
@@ -129,11 +129,11 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
         name: _nameC.text.trim(),
         email: _emailC.text.trim(),
         contactNumber: _phoneC.text.trim(),
-        govRegistrationId: _regIdC.text.trim(), // ✅ Pass the Gov ID
+        govRegistrationId: _regIdC.text.trim(), //  Pass the Gov ID
         dateOfBirth: _dob!,
         experienceYears: _exp,
         educationLevel: _highestQualification,
-        location: _selectedDistrict!, // ✅ Pass the selected district
+        location: _selectedDistrict!, //  Pass the selected district
         password: _passC.text,
         credentialFile: _credentialFile,
       );
@@ -232,7 +232,7 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
               ),
               const SizedBox(height: 12),
 
-              // ✅ Added Gov. Registration ID Field
+              // Added Gov. Registration ID Field
               TextFormField(
                 controller: _regIdC,
                 enabled: !_loading,
@@ -245,7 +245,7 @@ class _ExpertRegisterScreenState extends State<ExpertRegisterScreen> {
               ),
               const SizedBox(height: 12),
 
-              // ✅ Added District Dropdown
+              // Added District Dropdown
               DropdownButtonFormField<String>(
                 value: _selectedDistrict,
                 hint: const Text("Select District"),

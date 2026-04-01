@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-// ✅ Firebase
+//  Firebase
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -18,10 +18,10 @@ import 'feedback_screen.dart';
 import 'public_database_screen.dart';
 import 'result_screen.dart';
 
-// ✅ Login screen (change path if needed)
+// Login screen (change path if needed)
 import '../User/login_screen.dart';
 
-// ✅ schedule screen for experts (change path if needed)
+// schedule screen for experts (change path if needed)
 import '../Chemical_expert/expert_schedule_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -41,7 +41,7 @@ class HomeScreen extends StatelessWidget {
             tooltip: 'Alerts',
           ),
 
-          // ✅ LOGOUT: sign out + go to login
+          //  LOGOUT: sign out + go to login
           IconButton(
             tooltip: 'Logout',
             icon: const Icon(Icons.logout),
@@ -66,7 +66,7 @@ class HomeScreen extends StatelessWidget {
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
-                // ✅ Expert profile header (fixed overflow)
+                // Expert profile header (fixed overflow)
                 const _ExpertProfileHeader(),
                 const SizedBox(height: 14),
 
@@ -300,8 +300,8 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-/// ✅ Expert profile widget (reads callingName from experts/{uid})
-/// ✅ FIXED: no overflow on small screens
+/// Expert profile widget (reads callingName from experts/{uid})
+/// FIXED: no overflow on small screens
 class _ExpertProfileHeader extends StatelessWidget {
   const _ExpertProfileHeader();
 
@@ -356,7 +356,7 @@ class _ExpertProfileHeader extends StatelessWidget {
               ),
               const SizedBox(width: 12),
 
-              // ✅ EXPANDED prevents overflow
+              //  EXPANDED prevents overflow
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -381,7 +381,7 @@ class _ExpertProfileHeader extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
 
-                    // ✅ status pill (ellipsis)
+                    //  status pill (ellipsis)
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
@@ -428,7 +428,7 @@ class _ExpertProfileHeader extends StatelessWidget {
 
               const SizedBox(width: 10),
 
-              // ✅ FIX: use compact icon button (no text -> no overflow)
+              //  FIX: use compact icon button (no text -> no overflow)
               IconButton.filledTonal(
                 tooltip: "Schedule",
                 icon: const Icon(Icons.calendar_month_outlined),

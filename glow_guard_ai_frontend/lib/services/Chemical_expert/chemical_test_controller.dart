@@ -117,7 +117,7 @@ class ChemicalTestController extends ChangeNotifier {
   }
 
   // --- Backend/Database Action ---
-  Future<String> saveToDatabase({required String userId, String? appointmentId}) async {
+  Future<String> saveToDatabase({required String userId, String? appointmentId, required String expertNote}) async {
     if (before == null || after == null || lastPrediction == null) return "";
     return await _storageService.saveChemicalTestPrivate(
       requestedUserId: userId,
@@ -128,6 +128,24 @@ class ChemicalTestController extends ChangeNotifier {
       after: after!,
       mergedPreviewPng: mergedPreviewPng,
       appointmentId: appointmentId,
+      expertNote: expertNote, // Passing the expert note to the service
+    );
+  }
+
+  Future<String> requestProfessionalTest({required String userId, String? appointmentId, required String expertNote}) async {
+    if (before == null || after == null || lastPrediction == null) return "";
+    // Note: You must create this `requestProfessionalTest` function inside your ChemicalTestPrivateService
+    // to handle saving to the professional test requests database.
+    return await _storageService.requestProfessionalTest(
+      requestedUserId: userId,
+      requestedDateTime: DateTime.now(),
+      testType: type,
+      prediction: lastPrediction!,
+      before: before!,
+      after: after!,
+      mergedPreviewPng: mergedPreviewPng,
+      appointmentId: appointmentId,
+      expertNote: expertNote,
     );
   }
 

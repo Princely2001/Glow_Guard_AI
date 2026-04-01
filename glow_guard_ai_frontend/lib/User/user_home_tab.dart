@@ -1,8 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // ✅ Added for Clipboard (copying ID)
+import 'package:flutter/services.dart';
 
-// ✅ Firebase
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -14,7 +13,41 @@ import 'chatbot_tab.dart';
 import 'profile_tab.dart';
 import 'ProductReportScreen.dart';
 
-/// ✅ More attractive + animative User Home (no extra packages)
+//Design tokens
+class _Tokens {
+  static const teal = Color(0xFF00897B);
+  static const tealLight = Color(0xFFE0F2F1);
+  static const tealDark = Color(0xFF00695C);
+  static const amber = Color(0xFFFF8F00);
+  static const amberLight = Color(0xFFFFF8E1);
+  static const surface = Color(0xFFF7FAFA);
+  static const cardBg = Color(0xFFFFFFFF);
+  static const border = Color(0xFFE0EEEC);
+  static const textPrimary = Color(0xFF0D2220);
+  static const textSecondary = Color(0xFF4A6B67);
+  static const textHint = Color(0xFF8AABAA);
+  static const divider = Color(0xFFECF3F2);
+
+  static const r12 = BorderRadius.all(Radius.circular(12));
+  static const r16 = BorderRadius.all(Radius.circular(16));
+  static const r20 = BorderRadius.all(Radius.circular(20));
+  static const r24 = BorderRadius.all(Radius.circular(24));
+
+  static BoxDecoration card({double radius = 16}) => BoxDecoration(
+    color: cardBg,
+    borderRadius: BorderRadius.circular(radius),
+    border: Border.all(color: border, width: 1),
+    boxShadow: [
+      BoxShadow(
+        color: teal.withOpacity(0.06),
+        blurRadius: 16,
+        offset: const Offset(0, 6),
+      ),
+    ],
+  );
+}
+
+// Entry point
 class UserHomeTab extends StatefulWidget {
   const UserHomeTab({super.key});
 
@@ -22,481 +55,476 @@ class UserHomeTab extends StatefulWidget {
   State<UserHomeTab> createState() => _UserHomeTabState();
 }
 
-class _UserHomeTabState extends State<UserHomeTab> with SingleTickerProviderStateMixin {
-  late final AnimationController _c;
+class _UserHomeTabState extends State<UserHomeTab>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
   late final Animation<double> _fade;
   late final Animation<Offset> _slide;
 
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 850));
-    _fade = CurvedAnimation(parent: _c, curve: Curves.easeOutCubic);
-    _slide = Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _c, curve: Curves.easeOutCubic));
-    _c.forward();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    )..forward();
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.05),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
   }
 
   @override
   void dispose() {
-    _c.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 
+  void _push(Widget page) =>
+      Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return Scaffold(
+      backgroundColor: _Tokens.surface,
       body: Stack(
         children: [
-          const _SoftGradientBg(),
+          // Background blobs
           Positioned(
-            top: -120,
-            left: -90,
-            child: _AnimatedBlob(color: const Color(0xFF009688), size: 280, phase: 0.0),
+            top: -100,
+            left: -80,
+            child: _Blob(color: _Tokens.teal, size: 300, phase: 0),
           ),
           Positioned(
-            bottom: -150,
-            right: -110,
-            child: _AnimatedBlob(color: const Color(0xFFFF9800), size: 340, phase: 1.1),
+            bottom: -120,
+            right: -90,
+            child: _Blob(color: _Tokens.amber, size: 280, phase: 1.2),
           ),
 
+          // Main content
           SafeArea(
-            child: CustomScrollView(
-              slivers: [
-                SliverAppBar(
-                  pinned: true,
-                  floating: true,
-                  elevation: 0,
-                  backgroundColor: Colors.transparent,
-                  title: const Text("GlowGuard AI"),
-                  actions: const [
-                    // ✅ Replaced the static icon with the dynamic Notification Badge
-                    _NotificationBadgeIcon(),
-                    SizedBox(width: 6),
-                  ],
-                ),
-
-                SliverToBoxAdapter(
-                  child: FadeTransition(
-                    opacity: _fade,
-                    child: SlideTransition(
-                      position: _slide,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // ✅ Profile Header
-                            _UserProfileHeader(
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const ProfileTab()),
+            child: FadeTransition(
+              opacity: _fade,
+              child: SlideTransition(
+                position: _slide,
+                child: CustomScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  slivers: [
+                    // App bar
+                    SliverAppBar(
+                      pinned: true,
+                      floating: true,
+                      elevation: 0,
+                      scrolledUnderElevation: 0,
+                      backgroundColor: Colors.transparent,
+                      centerTitle: false,
+                      toolbarHeight: 58,
+                      title: Row(
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [_Tokens.teal, _Tokens.tealDark],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
                               ),
+                              borderRadius: BorderRadius.circular(10),
                             ),
-                            const SizedBox(height: 12),
-
-                            // ✅ Hero
-                            _HeroCard(
-                              onFindExpert: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const FindExpertTab()),
-                              ),
-                              onChatbot: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const ChatbotTab()),
-                              ),
+                            child: const Icon(
+                              Icons.shield_rounded,
+                              color: Colors.white,
+                              size: 18,
                             ),
+                          ),
+                          const SizedBox(width: 10),
+                          const Text(
+                            'GlowGuard',
+                            style: TextStyle(
+                              color: _Tokens.textPrimary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 20,
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                          Text(
+                            ' AI',
+                            style: TextStyle(
+                              color: _Tokens.teal,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 20,
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                      actions: [
+                        _NotificationIcon(onViewAll: () => _push(const MyRequestsScreen())),
+                        const SizedBox(width: 12),
+                      ],
+                    ),
 
-                            const SizedBox(height: 14),
+                    // Body
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
+                          // Profile header
+                          _ProfileCard(onTap: () => _push(const ProfileTab())),
+                          const SizedBox(height: 16),
 
-                            // ✅ Stats
-                            ValueListenableBuilder<List<UserTestRequest>>(
-                              valueListenable: userRequestsStore,
-                              builder: (context, reqs, _) {
-                                final total = reqs.length;
-                                final completed =
-                                    reqs.where((r) => r.status == RequestStatus.completed).length;
-                                final pending =
-                                    reqs.where((r) => r.status != RequestStatus.completed).length;
+                          // Hero banner
+                          _HeroBanner(
+                            onFindExpert: () => _push(const FindExpertTab()),
+                            onChatbot: () => _push(const ChatbotTab()),
+                          ),
+                          const SizedBox(height: 20),
 
-                                return Row(
-                                  children: [
-                                    Expanded(
-                                      child: _StatChip(
-                                        icon: Icons.receipt_long_outlined,
-                                        label: "Requests",
-                                        value: total,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: _StatChip(
-                                        icon: Icons.timelapse_outlined,
-                                        label: "Pending",
-                                        value: pending,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: _StatChip(
-                                        icon: Icons.verified_outlined,
-                                        label: "Done",
-                                        value: completed,
-                                      ),
-                                    ),
-                                  ],
+                          // Stats row
+                          ValueListenableBuilder<List<UserTestRequest>>(
+                            valueListenable: userRequestsStore,
+                            builder: (_, reqs, __) => _StatsRow(
+                              total: reqs.length,
+                              pending: reqs.where((r) => r.status != RequestStatus.completed).length,
+                              completed: reqs.where((r) => r.status == RequestStatus.completed).length,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Section: Quick Actions
+                          _SectionLabel(title: 'Quick Actions', badge: 'USER'),
+                          const SizedBox(height: 12),
+                          _ActionsGrid(
+                            items: [
+                              _ActionItem(
+                                icon: Icons.report_problem_outlined,
+                                label: 'Report Harmful',
+                                sub: 'Track side effects',
+                                onTap: () => _push(const DangerousProductReportScreen()),
+                              ),
+                              _ActionItem(
+                                icon: Icons.history_rounded,
+                                label: 'Test Results',
+                                sub: 'View your results',
+                                onTap: () => _push(const MyRequestsScreen()),
+                              ),
+                              _ActionItem(
+                                icon: Icons.school_outlined,
+                                label: 'Research',
+                                sub: 'Chemicals & labels',
+                                onTap: () => _push(const ResearchTab()),
+                              ),
+                              _ActionItem(
+                                icon: Icons.smart_toy_outlined,
+                                label: 'AI Chatbot',
+                                sub: 'Ask ingredients',
+                                onTap: () => _push(const ChatbotTab()),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+
+                          // Section: Learn Faster
+                          _SectionLabel(title: 'Learn Faster'),
+                          const SizedBox(height: 12),
+                          _LearnRow(onTap: () => _push(const ResearchTab())),
+                          const SizedBox(height: 24),
+
+                          // Section: Recent Requests
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Recent Requests',
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: _Tokens.textPrimary,
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () => _push(const MyRequestsScreen()),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: _Tokens.teal,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  textStyle: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                child: const Text('View all'),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          ValueListenableBuilder<List<UserTestRequest>>(
+                            valueListenable: userRequestsStore,
+                            builder: (_, list, __) {
+                              if (list.isEmpty) {
+                                return _EmptyState(
+                                  onTap: () => _push(const FindExpertTab()),
                                 );
-                              },
-                            ),
-
-                            const SizedBox(height: 18),
-
-                            // ✅ Quick Actions
-                            Row(
-                              children: [
-                                Text("Quick Actions",
-                                    style: Theme.of(context).textTheme.titleMedium),
-                                const Spacer(),
-                                _PillTag(text: "USER", color: cs.primary),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-
-                            GridView(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                mainAxisSpacing: 12,
-                                crossAxisSpacing: 12,
-                                childAspectRatio: 1.18,
-                              ),
-                              children: [
-                                _ActionTile(
-                                  icon: Icons.report_problem_outlined,
-                                  title: "Report Harmful",
-                                  subtitle: "Track side effects",
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => const DangerousProductReportScreen()),
-                                  ),
-                                ),
-                                _ActionTile(
-                                  icon: Icons.history,
-                                  title: "View Test Results",
-                                  subtitle: "Track results",
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => const MyRequestsScreen()),
-                                  ),
-                                ),
-                                _ActionTile(
-                                  icon: Icons.school_outlined,
-                                  title: "Study",
-                                  subtitle: "Chemicals & labels",
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => const ResearchTab()),
-                                  ),
-                                ),
-                                _ActionTile(
-                                  icon: Icons.smart_toy_outlined,
-                                  title: "Chatbot",
-                                  subtitle: "Ask ingredients",
-                                  onTap: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => const ChatbotTab()),
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 18),
-
-                            // ✅ Learn
-                            Text("Learn Faster", style: Theme.of(context).textTheme.titleMedium),
-                            const SizedBox(height: 10),
-
-                            SizedBox(
-                              height: 118,
-                              child: ListView(
-                                scrollDirection: Axis.horizontal,
-                                children: [
-                                  _LearnCard(
-                                    title: "Mercury",
-                                    subtitle: "Why it’s dangerous",
-                                    icon: Icons.warning_amber_rounded,
-                                    onTap: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(builder: (_) => const ResearchTab()),
+                              }
+                              return Column(
+                                children: list
+                                    .take(3)
+                                    .toList()
+                                    .asMap()
+                                    .entries
+                                    .map(
+                                      (e) => Padding(
+                                    padding: EdgeInsets.only(
+                                      bottom: e.key < 2 ? 8 : 0,
+                                    ),
+                                    child: _AnimatedEntry(
+                                      delayMs: 80 * e.key,
+                                      child: _RequestRow(r: e.value),
                                     ),
                                   ),
-                                  _LearnCard(
-                                    title: "Hydroquinone",
-                                    subtitle: "Safe usage tips",
-                                    icon: Icons.spa_outlined,
-                                    onTap: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(builder: (_) => const ResearchTab()),
-                                    ),
-                                  ),
-                                  _LearnCard(
-                                    title: "Steroids",
-                                    subtitle: "Hidden risks",
-                                    icon: Icons.health_and_safety_outlined,
-                                    onTap: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(builder: (_) => const ResearchTab()),
-                                    ),
-                                  ),
-                                ]
-                                    .map((w) => Padding(
-                                  padding: const EdgeInsets.only(right: 12),
-                                  child: w,
-                                ))
+                                )
                                     .toList(),
-                              ),
-                            ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 20),
 
-                            const SizedBox(height: 18),
-
-                            // ✅ Recent Requests
-                            Row(
-                              children: [
-                                Text("Recent Requests",
-                                    style: Theme.of(context).textTheme.titleMedium),
-                                const Spacer(),
-                                TextButton(
-                                  onPressed: () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(builder: (_) => const MyRequestsScreen()),
-                                  ),
-                                  child: const Text("View all"),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-
-                            ValueListenableBuilder<List<UserTestRequest>>(
-                              valueListenable: userRequestsStore,
-                              builder: (context, list, _) {
-                                if (list.isEmpty) {
-                                  return _EmptyStateCard(
-                                    title: "No requests yet",
-                                    subtitle:
-                                    "Tap “Find Expert” to request your first chemical test.",
-                                    buttonText: "Find Expert",
-                                    onPressed: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(builder: (_) => const FindExpertTab()),
-                                    ),
-                                  );
-                                }
-
-                                final show = list.take(3).toList();
-                                return Column(
-                                  children: List.generate(show.length, (i) {
-                                    final r = show[i];
-                                    return Padding(
-                                      padding: const EdgeInsets.only(bottom: 10),
-                                      child: _AnimatedEntry(
-                                        delayMs: 100 + (i * 80),
-                                        child: _RequestCard(r: r),
-                                      ),
-                                    );
-                                  }),
-                                );
-                              },
-                            ),
-
-                            const SizedBox(height: 8),
-
-                            // ✅ Tip
-                            Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: cs.surfaceContainerHighest.withOpacity(0.7),
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: cs.outlineVariant),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Icon(Icons.lightbulb_outline, color: cs.primary),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      "Tip: When requesting a test, add product name + batch number for faster expert processing.",
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.copyWith(color: cs.onSurfaceVariant),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-                        ),
+                          // Tip card
+                          const _TipBanner(),
+                          const SizedBox(height: 8),
+                        ]),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ],
       ),
 
+      // FAB
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const FindExpertTab()),
+        onPressed: () => _push(const FindExpertTab()),
+        backgroundColor: _Tokens.teal,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        icon: const Icon(Icons.search_rounded),
+        label: const Text(
+          'Find Expert',
+          style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.2),
         ),
-        icon: const Icon(Icons.search),
-        label: const Text("Find Expert"),
       ),
     );
   }
 }
 
-/// -------------------- DYNAMIC NOTIFICATION ICON --------------------
-class _NotificationBadgeIcon extends StatelessWidget {
-  const _NotificationBadgeIcon();
+// Background blob
+class _Blob extends StatelessWidget {
+  final Color color;
+  final double size;
+  final double phase;
+  const _Blob({required this.color, required this.size, required this.phase});
 
-  void _showRecentIdsDialog(BuildContext context, List<QueryDocumentSnapshot> docs) {
-    final cs = Theme.of(context).colorScheme;
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 2 * math.pi),
+      duration: const Duration(seconds: 8),
+      curve: Curves.linear,
+      builder: (_, t, __) => Transform.translate(
+        offset: Offset(
+          math.cos(t + phase) * 8,
+          math.sin(t + phase) * 6,
+        ),
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.10),
+            shape: BoxShape.circle,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+//Notification icon
+class _NotificationIcon extends StatelessWidget {
+  final VoidCallback onViewAll;
+  const _NotificationIcon({required this.onViewAll});
+
+  void _showDialog(BuildContext context, List<QueryDocumentSnapshot> docs) {
     showDialog(
       context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text("Lab Results Ready! 🔬"),
-          content: SizedBox(
-            width: double.maxFinite,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 500,
+            maxHeight: MediaQuery.sizeOf(context).height * 0.72,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  "Copy your Record ID below and paste it in the search screen to view the full report.",
-                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
-                ),
-                const SizedBox(height: 12),
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final data = docs[index].data() as Map<String, dynamic>;
-                    final recordId = data['recordId']?.toString() ?? docs[index].id;
-                    final testType = data['testType']?.toString() ?? 'Test';
-                    final label = data['predictionLabel']?.toString() ?? 'Result';
-
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        side: BorderSide(color: cs.outlineVariant),
-                        borderRadius: BorderRadius.circular(12),
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: _Tokens.tealLight,
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      child: ListTile(
-                        title: Text(recordId, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                        subtitle: Text("$testType • $label", style: const TextStyle(fontSize: 12)),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.copy, size: 20),
-                          color: cs.primary,
-                          onPressed: () {
-                            Clipboard.setData(ClipboardData(text: recordId));
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text("ID Copied! Paste it in the search box.")),
-                            );
-                          },
+                      child: Icon(Icons.biotech_rounded, color: _Tokens.teal, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Lab Results Ready',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: _Tokens.textPrimary,
                         ),
                       ),
-                    );
-                  },
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                      style: IconButton.styleFrom(
+                        foregroundColor: _Tokens.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Copy your Record ID and paste it in the search screen to view the full report.',
+                  style: TextStyle(fontSize: 13, color: _Tokens.textSecondary, height: 1.5),
+                ),
+                const SizedBox(height: 16),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: docs.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (ctx, i) {
+                      final d = docs[i].data() as Map<String, dynamic>;
+                      final id = d['recordId']?.toString() ?? docs[i].id;
+                      final type = d['testType']?.toString() ?? 'Test';
+                      final label = d['predictionLabel']?.toString() ?? 'Result';
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: _Tokens.tealLight,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _Tokens.border),
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                          title: SelectableText(
+                            id,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                              color: _Tokens.textPrimary,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '$type · $label',
+                            style: const TextStyle(fontSize: 12, color: _Tokens.textSecondary),
+                          ),
+                          trailing: IconButton(
+                            icon: Icon(Icons.copy_rounded, size: 18, color: _Tokens.teal),
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: id));
+                              ScaffoldMessenger.of(ctx).showSnackBar(
+                                const SnackBar(content: Text('ID copied!')),
+                              );
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Close'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        onViewAll();
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: _Tokens.teal,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text('Go to Search'),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text("Close"),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const MyRequestsScreen()),
-                );
-              },
-              child: const Text("Go to Search"),
-            )
-          ],
-        );
-      },
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-
-    // If user is not logged in, just show normal icon
     if (uid == null) {
       return IconButton(
-        icon: const Icon(Icons.history),
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const MyRequestsScreen()),
-        ),
+        icon: const Icon(Icons.history_rounded),
+        onPressed: onViewAll,
+        style: IconButton.styleFrom(foregroundColor: _Tokens.textPrimary),
       );
     }
 
     return StreamBuilder<QuerySnapshot>(
-      // Listen to chemical test private collection where requestedUserId matches current user
       stream: FirebaseFirestore.instance
           .collection('chemical test private')
           .where('requestedUserId', isEqualTo: uid)
           .snapshots(),
-      builder: (context, snapshot) {
-        var docs = snapshot.data?.docs.toList() ?? [];
-
-        // Sort locally by createdAt so we don't force you to build a complex Firestore Index
-        docs.sort((a, b) {
-          final aData = a.data() as Map<String, dynamic>;
-          final bData = b.data() as Map<String, dynamic>;
-          final aTime = aData['createdAt'] as Timestamp?;
-          final bTime = bData['createdAt'] as Timestamp?;
-          if (aTime == null || bTime == null) return 0;
-          return bTime.compareTo(aTime); // descending (newest first)
-        });
-
-        // Take the 5 most recent results
-        final recentDocs = docs.take(5).toList();
-        final hasResults = recentDocs.isNotEmpty;
+      builder: (context, snap) {
+        final docs = (snap.data?.docs ?? [])
+          ..sort((a, b) {
+            final at = (a.data() as Map)['createdAt'] as Timestamp?;
+            final bt = (b.data() as Map)['createdAt'] as Timestamp?;
+            return (bt?.compareTo(at ?? Timestamp.now()) ?? 0);
+          });
+        final recent = docs.take(5).toList();
 
         return Badge(
-          isLabelVisible: hasResults,
-          label: Text(recentDocs.length.toString()),
+          isLabelVisible: recent.isNotEmpty,
+          label: Text('${recent.length}'),
+          offset: const Offset(-4, 4),
           child: IconButton(
-            tooltip: "View Test Results",
-            icon: const Icon(Icons.history),
+            tooltip: 'Lab Results',
+            icon: const Icon(Icons.notifications_outlined),
+            style: IconButton.styleFrom(foregroundColor: _Tokens.textPrimary),
             onPressed: () {
-              if (hasResults) {
-                // Pop open the dialog to copy IDs
-                _showRecentIdsDialog(context, recentDocs);
+              if (recent.isNotEmpty) {
+                _showDialog(context, recent);
               } else {
-                // If no results, just go straight to the screen
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const MyRequestsScreen()),
-                );
+                onViewAll();
               }
             },
           ),
@@ -506,168 +534,139 @@ class _NotificationBadgeIcon extends StatelessWidget {
   }
 }
 
-/// ✅ Profile Header Widget (Firestore users/{uid})
-class _UserProfileHeader extends StatelessWidget {
+//Profile card
+class _ProfileCard extends StatelessWidget {
   final VoidCallback onTap;
-  const _UserProfileHeader({required this.onTap});
+  const _ProfileCard({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final uid = FirebaseAuth.instance.currentUser?.uid;
-
-    if (uid == null) {
-      return Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: cs.surfaceContainerHighest.withOpacity(0.75),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: cs.outlineVariant),
-        ),
-        child: const Text("Not logged in"),
-      );
-    }
+    if (uid == null) return const SizedBox.shrink();
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance.collection('users').doc(uid).snapshots(),
       builder: (context, snap) {
         final data = snap.data?.data() ?? {};
-        final name = (data['name'] ?? 'User').toString();
-        final userId = (data['userId'] ?? '').toString();
-        final photoUrl = (data['photoUrl'] ?? '').toString(); // optional
+        final name = data['name']?.toString() ?? 'User';
+        final userId = data['userId']?.toString() ?? '';
+        final photoUrl = data['photoUrl']?.toString() ?? '';
 
-        return InkWell(
-          borderRadius: BorderRadius.circular(26),
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(26),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  cs.primaryContainer.withOpacity(0.85),
-                  cs.secondaryContainer.withOpacity(0.75),
-                  cs.surface.withOpacity(0.70),
-                ],
-              ),
-              border: Border.all(color: cs.outlineVariant.withOpacity(0.85)),
-              boxShadow: [
-                BoxShadow(
-                  blurRadius: 28,
-                  offset: const Offset(0, 14),
-                  color: Colors.black.withOpacity(0.08),
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    _Tokens.teal.withOpacity(0.08),
+                    _Tokens.teal.withOpacity(0.03),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-              ],
-            ),
-            child: Row(
-              children: [
-                // Avatar + ring
-                Container(
-                  padding: const EdgeInsets.all(2.5),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [
-                        cs.primary.withOpacity(0.9),
-                        cs.secondary.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _Tokens.teal.withOpacity(0.15)),
+              ),
+              child: Row(
+                children: [
+                  // Avatar
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [_Tokens.teal, _Tokens.tealDark],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    padding: const EdgeInsets.all(2.5),
+                    child: CircleAvatar(
+                      backgroundColor: _Tokens.cardBg,
+                      backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
+                      child: photoUrl.isEmpty
+                          ? Icon(Icons.person_rounded, color: _Tokens.teal, size: 26)
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+
+                  // Name + ID
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w800,
+                                  color: _Tokens.textPrimary,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            _Pill(label: 'USER'),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          userId.isEmpty ? 'Tap to view profile' : 'ID: $userId',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: _Tokens.textSecondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(Icons.manage_accounts_outlined, size: 14, color: _Tokens.teal),
+                            const SizedBox(width: 4),
+                            const Text(
+                              'View & edit profile',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _Tokens.teal,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
-                  child: CircleAvatar(
-                    radius: 26,
-                    backgroundColor: cs.surface,
-                    backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
-                    child: photoUrl.isEmpty
-                        ? Icon(Icons.person_rounded, color: cs.primary, size: 28)
-                        : null,
+
+                  // Arrow
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: _Tokens.cardBg,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: _Tokens.border),
+                    ),
+                    child: Icon(
+                      Icons.chevron_right_rounded,
+                      color: _Tokens.textSecondary,
+                      size: 20,
+                    ),
                   ),
-                ),
-
-                const SizedBox(width: 14),
-
-                // Name + id + small chip
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: cs.primary.withOpacity(0.10),
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(color: cs.primary.withOpacity(0.18)),
-                            ),
-                            child: Text(
-                              "USER",
-                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                color: cs.primary,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.6,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        userId.isEmpty ? "Tap to view your profile" : "ID: $userId",
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: cs.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-
-                      // mini row: hint + arrow (better than a lone chevron)
-                      Row(
-                        children: [
-                          Icon(Icons.manage_accounts_outlined, size: 18, color: cs.onSurfaceVariant),
-                          const SizedBox(width: 6),
-                          Text(
-                            "View & edit profile",
-                            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                              color: cs.onSurfaceVariant,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(width: 10),
-
-                // Trailing button
-                Container(
-                  height: 42,
-                  width: 42,
-                  decoration: BoxDecoration(
-                    color: cs.surface.withOpacity(0.70),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: cs.outlineVariant.withOpacity(0.8)),
-                  ),
-                  child: Icon(Icons.arrow_forward_ios_rounded, size: 18, color: cs.onSurfaceVariant),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -676,156 +675,198 @@ class _UserProfileHeader extends StatelessWidget {
   }
 }
 
-/// -------------------- UI PARTS --------------------
-
-class _SoftGradientBg extends StatelessWidget {
-  const _SoftGradientBg();
+// Pill
+class _Pill extends StatelessWidget {
+  final String label;
+  const _Pill({required this.label});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFE9FBF9),
-            Color(0xFFF7FFFD),
-            Color(0xFFFFFFFF),
-          ],
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: _Tokens.teal.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: _Tokens.teal.withOpacity(0.22)),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: _Tokens.teal,
+          letterSpacing: 0.8,
         ),
       ),
     );
   }
 }
 
-class _AnimatedBlob extends StatelessWidget {
-  final Color color;
-  final double size;
-  final double phase;
-  const _AnimatedBlob({required this.color, required this.size, required this.phase});
+//Hero banner
+class _HeroBanner extends StatelessWidget {
+  final VoidCallback onFindExpert;
+  final VoidCallback onChatbot;
+  const _HeroBanner({required this.onFindExpert, required this.onChatbot});
 
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 2200),
-      curve: Curves.easeInOut,
-      builder: (context, t, _) {
-        final dy = math.sin((t * math.pi * 2) + phase) * 10;
-        final dx = math.cos((t * math.pi * 2) + phase) * 6;
-        return Transform.translate(
-          offset: Offset(dx, dy),
-          child: Container(
-            height: size,
-            width: size,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
-              shape: BoxShape.circle,
-            ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_Tokens.teal, _Tokens.tealDark],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: _Tokens.teal.withOpacity(0.28),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
           ),
-        );
-      },
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Icon
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.shield_outlined, color: Colors.white, size: 26),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Stay protected',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Request chemical tests from verified experts and learn about safe cosmetic ingredients.',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.82),
+                        fontSize: 13,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: _HeroButton(
+                  onTap: onFindExpert,
+                  icon: Icons.search_rounded,
+                  label: 'Find Expert',
+                  filled: true,
+                ),
+              ),
+              const SizedBox(width: 10),
+              _HeroButton(
+                onTap: onChatbot,
+                icon: Icons.smart_toy_outlined,
+                label: 'Chatbot',
+                filled: false,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _HeroCard extends StatelessWidget {
-  final VoidCallback onFindExpert;
-  final VoidCallback onChatbot;
-
-  const _HeroCard({required this.onFindExpert, required this.onChatbot});
+class _HeroButton extends StatelessWidget {
+  final VoidCallback onTap;
+  final IconData icon;
+  final String label;
+  final bool filled;
+  const _HeroButton({
+    required this.onTap,
+    required this.icon,
+    required this.label,
+    required this.filled,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: filled ? Colors.white : Colors.white.withOpacity(0.15),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: filled ? null : Border.all(color: Colors.white.withOpacity(0.3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: filled ? _Tokens.tealDark : Colors.white,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: filled ? _Tokens.tealDark : Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [cs.primaryContainer, cs.secondaryContainer]),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: cs.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            blurRadius: 28,
-            offset: const Offset(0, 14),
-            color: Colors.black.withOpacity(0.06),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: 1),
-            duration: const Duration(milliseconds: 1400),
-            curve: Curves.easeInOut,
-            builder: (context, t, _) {
-              final dy = math.sin(t * math.pi * 2) * 4.5;
-              return Transform.translate(
-                offset: Offset(0, dy),
-                child: Container(
-                  height: 54,
-                  width: 54,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        cs.primary.withOpacity(0.95),
-                        cs.primary.withOpacity(0.70),
-                      ],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        blurRadius: 18,
-                        offset: const Offset(0, 10),
-                        color: cs.primary.withOpacity(0.18),
-                      )
-                    ],
-                  ),
-                  child: const Icon(Icons.shield_outlined, color: Colors.white, size: 28),
-                ),
-              );
-            },
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("Stay protected", style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 6),
-                Text(
-                  "Request chemical tests from experts and learn safe ingredients.",
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: onFindExpert,
-                        icon: const Icon(Icons.search),
-                        label: const Text("Find Expert"),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    IconButton.filledTonal(
-                      onPressed: onChatbot,
-                      tooltip: "Chatbot",
-                      icon: const Icon(Icons.smart_toy_outlined),
-                    ),
-                  ],
-                )
-              ],
-            ),
-          )
-        ],
-      ),
+//Stats row
+class _StatsRow extends StatelessWidget {
+  final int total;
+  final int pending;
+  final int completed;
+  const _StatsRow({required this.total, required this.pending, required this.completed});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: _StatChip(icon: Icons.receipt_long_outlined, label: 'Total', value: total, color: _Tokens.teal)),
+        const SizedBox(width: 10),
+        Expanded(child: _StatChip(icon: Icons.timelapse_outlined, label: 'Pending', value: pending, color: _Tokens.amber)),
+        const SizedBox(width: 10),
+        Expanded(child: _StatChip(icon: Icons.check_circle_outline_rounded, label: 'Done', value: completed, color: const Color(0xFF2E7D32))),
+      ],
     );
   }
 }
@@ -834,47 +875,53 @@ class _StatChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final int value;
-  const _StatChip({required this.icon, required this.label, required this.value});
+  final Color color;
+  const _StatChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withOpacity(0.75),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: cs.outlineVariant),
-      ),
-      child: Row(
+      padding: const EdgeInsets.all(14),
+      decoration: _Tokens.card(radius: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            height: 36,
-            width: 36,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
-              color: cs.primary.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(14),
+              color: color.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: cs.primary, size: 20),
+            child: Icon(icon, color: color, size: 18),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: Theme.of(context).textTheme.labelLarge),
-                const SizedBox(height: 2),
-                TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0, end: value.toDouble()),
-                  duration: const Duration(milliseconds: 700),
-                  curve: Curves.easeOutCubic,
-                  builder: (context, v, _) {
-                    return Text("${v.round()}",
-                        style: Theme.of(context).textTheme.titleMedium);
-                  },
-                ),
-              ],
+          const SizedBox(height: 10),
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: value.toDouble()),
+            duration: const Duration(milliseconds: 800),
+            curve: Curves.easeOutCubic,
+            builder: (_, v, __) => Text(
+              '${v.round()}',
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: _Tokens.textPrimary,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: _Tokens.textSecondary,
             ),
           ),
         ],
@@ -883,40 +930,73 @@ class _StatChip extends StatelessWidget {
   }
 }
 
-class _PillTag extends StatelessWidget {
-  final String text;
-  final Color color;
-  const _PillTag({required this.text, required this.color});
+//Section label
+class _SectionLabel extends StatelessWidget {
+  final String title;
+  final String? badge;
+  const _SectionLabel({required this.title, this.badge});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.25)),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: _Tokens.textPrimary,
+              letterSpacing: -0.2,
+            ),
+          ),
+        ),
+        if (badge != null) _Pill(label: badge!),
+      ],
+    );
+  }
+}
+
+//Quick Actions grid
+class _ActionItem {
+  final IconData icon;
+  final String label;
+  final String sub;
+  final VoidCallback onTap;
+  const _ActionItem({
+    required this.icon,
+    required this.label,
+    required this.sub,
+    required this.onTap,
+  });
+}
+
+class _ActionsGrid extends StatelessWidget {
+  final List<_ActionItem> items;
+  const _ActionsGrid({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    // Always 2 columns for consistency and readability
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
+        childAspectRatio: 1.55,
       ),
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(color: color),
-      ),
+      itemCount: items.length,
+      itemBuilder: (_, i) => _ActionTile(item: items[i]),
     );
   }
 }
 
 class _ActionTile extends StatefulWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  const _ActionTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
+  final _ActionItem item;
+  const _ActionTile({required this.item});
 
   @override
   State<_ActionTile> createState() => _ActionTileState();
@@ -927,51 +1007,57 @@ class _ActionTileState extends State<_ActionTile> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return GestureDetector(
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
-      onTap: widget.onTap,
+      onTap: widget.item.onTap,
       child: AnimatedScale(
-        scale: _pressed ? 0.98 : 1.0,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
+        scale: _pressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 100),
         child: Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: cs.surfaceContainerHighest.withOpacity(0.78),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: cs.outlineVariant),
-            boxShadow: [
-              BoxShadow(
-                blurRadius: 18,
-                offset: const Offset(0, 10),
-                color: Colors.black.withOpacity(0.05),
-              )
-            ],
-          ),
-          child: Column(
+          decoration: _Tokens.card(radius: 16),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                height: 44,
-                width: 44,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
-                  color: cs.primary.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: cs.primary.withOpacity(0.18)),
+                  color: _Tokens.teal.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(11),
                 ),
-                child: Icon(widget.icon, color: cs.primary),
+                child: Icon(widget.item.icon, color: _Tokens.teal, size: 20),
               ),
-              const Spacer(),
-              Text(widget.title, style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(height: 4),
-              Text(
-                widget.subtitle,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: cs.onSurfaceVariant,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      widget.item.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: _Tokens.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      widget.item.sub,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: _Tokens.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -982,16 +1068,52 @@ class _ActionTileState extends State<_ActionTile> {
   }
 }
 
-class _LearnCard extends StatefulWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
+//Learn row (horizontal scroll)
+class _LearnRow extends StatelessWidget {
   final VoidCallback onTap;
+  const _LearnRow({required this.onTap});
 
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      (icon: Icons.warning_amber_rounded, title: 'Mercury', sub: 'Why it\'s dangerous', color: const Color(0xFFB71C1C)),
+      (icon: Icons.spa_outlined, title: 'Hydroquinone', sub: 'Safe usage tips', color: _Tokens.teal),
+      (icon: Icons.health_and_safety_outlined, title: 'Steroids', sub: 'Hidden risks', color: _Tokens.amber),
+    ];
+
+    return SizedBox(
+      height: 94,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (_, i) {
+          final item = items[i];
+          return _LearnCard(
+            icon: item.icon,
+            title: item.title,
+            sub: item.sub,
+            color: item.color,
+            onTap: onTap,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _LearnCard extends StatefulWidget {
+  final IconData icon;
+  final String title;
+  final String sub;
+  final Color color;
+  final VoidCallback onTap;
   const _LearnCard({
-    required this.title,
-    required this.subtitle,
     required this.icon,
+    required this.title,
+    required this.sub,
+    required this.color,
     required this.onTap,
   });
 
@@ -1004,55 +1126,60 @@ class _LearnCardState extends State<_LearnCard> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return GestureDetector(
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) => setState(() => _pressed = false),
       onTapCancel: () => setState(() => _pressed = false),
       onTap: widget.onTap,
       child: AnimatedScale(
-        scale: _pressed ? 0.98 : 1,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
+        scale: _pressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 100),
         child: Container(
-          width: 220,
+          width: 170,
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: cs.surfaceContainerHighest.withOpacity(0.78),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: cs.outlineVariant),
-          ),
+          decoration: _Tokens.card(radius: 14),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
-                height: 44,
-                width: 44,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
-                  color: cs.secondary.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: cs.secondary.withOpacity(0.18)),
+                  color: widget.color.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(widget.icon, color: cs.secondary),
+                child: Icon(widget.icon, color: widget.color, size: 20),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(widget.title, style: Theme.of(context).textTheme.titleSmall),
-                    const SizedBox(height: 4),
                     Text(
-                      widget.subtitle,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: cs.onSurfaceVariant,
+                      widget.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: _Tokens.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.sub,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: _Tokens.textSecondary,
+                        height: 1.4,
                       ),
                     ),
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
             ],
           ),
         ),
@@ -1061,44 +1188,43 @@ class _LearnCardState extends State<_LearnCard> {
   }
 }
 
-String _safeEnumLabel(Object? v) {
-  if (v == null) return "-";
+// Request row
+String _label(Object? v) {
+  if (v == null) return '-';
   final s = v.toString();
   return s.contains('.') ? s.split('.').last : s;
 }
 
-class _RequestCard extends StatelessWidget {
+class _RequestRow extends StatelessWidget {
   final UserTestRequest r;
-  const _RequestCard({required this.r});
+  const _RequestRow({required this.r});
+
+  Color get _statusColor {
+    switch (r.status) {
+      case RequestStatus.pending:
+        return _Tokens.amber;
+      case RequestStatus.inProgress:
+        return _Tokens.teal;
+      default:
+        return const Color(0xFF2E7D32);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    final statusColor = (r.status == RequestStatus.pending)
-        ? cs.secondary
-        : (r.status == RequestStatus.inProgress)
-        ? cs.primary
-        : cs.tertiary;
-
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withOpacity(0.78),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: cs.outlineVariant),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: _Tokens.card(radius: 14),
       child: Row(
         children: [
           Container(
-            height: 44,
-            width: 44,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: statusColor.withOpacity(0.18)),
+              color: _statusColor.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(11),
             ),
-            child: Icon(Icons.science_outlined, color: statusColor),
+            child: Icon(Icons.science_outlined, color: _statusColor, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1106,82 +1232,139 @@ class _RequestCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "${r.productName} • ${_safeEnumLabel(r.testType)}",
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  "Expert: ${r.expertName} • ${_safeEnumLabel(r.status)}",
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: cs.onSurfaceVariant,
+                  '${r.productName} · ${_label(r.testType)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: _Tokens.textPrimary,
                   ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Expert: ${r.expertName}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, color: _Tokens.textSecondary),
                 ),
               ],
             ),
           ),
-          Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: _statusColor.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              _label(r.status),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: _statusColor,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _EmptyStateCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final String buttonText;
-  final VoidCallback onPressed;
-
-  const _EmptyStateCard({
-    required this.title,
-    required this.subtitle,
-    required this.buttonText,
-    required this.onPressed,
-  });
+//Empty state
+class _EmptyState extends StatelessWidget {
+  final VoidCallback onTap;
+  const _EmptyState({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            cs.surfaceContainerHighest,
-            cs.surfaceContainerHighest.withOpacity(0.7),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: cs.outlineVariant),
-      ),
-      child: Row(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      decoration: _Tokens.card(radius: 16),
+      child: Column(
         children: [
-          Icon(Icons.inbox_outlined, color: cs.onSurfaceVariant),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: Theme.of(context).textTheme.titleSmall),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                FilledButton(onPressed: onPressed, child: Text(buttonText)),
-              ],
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: _Tokens.tealLight,
+              borderRadius: BorderRadius.circular(16),
             ),
-          )
+            child: Icon(Icons.inbox_outlined, color: _Tokens.teal, size: 26),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'No requests yet',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: _Tokens.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Tap "Find Expert" to request your first chemical test.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: _Tokens.textSecondary, height: 1.5),
+          ),
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: onTap,
+            icon: const Icon(Icons.search_rounded, size: 16),
+            label: const Text('Find Expert'),
+            style: FilledButton.styleFrom(
+              backgroundColor: _Tokens.teal,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
+// Tip banner
+class _TipBanner extends StatelessWidget {
+  const _TipBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _Tokens.amberLight,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _Tokens.amber.withOpacity(0.22)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.lightbulb_outline_rounded, color: _Tokens.amber, size: 20),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Tip: When requesting a test, add the product name and batch number for faster expert processing.',
+              style: TextStyle(
+                fontSize: 13,
+                color: Color(0xFF5D4037),
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Animated entry
 class _AnimatedEntry extends StatefulWidget {
   final Widget child;
   final int delayMs;
@@ -1191,27 +1374,27 @@ class _AnimatedEntry extends StatefulWidget {
   State<_AnimatedEntry> createState() => _AnimatedEntryState();
 }
 
-class _AnimatedEntryState extends State<_AnimatedEntry> with SingleTickerProviderStateMixin {
-  late final AnimationController _c;
+class _AnimatedEntryState extends State<_AnimatedEntry>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
   late final Animation<double> _fade;
   late final Animation<Offset> _slide;
 
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 420));
-    _fade = CurvedAnimation(parent: _c, curve: Curves.easeOut);
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 380));
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
     _slide = Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _c, curve: Curves.easeOutCubic));
-
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
     Future.delayed(Duration(milliseconds: widget.delayMs), () {
-      if (mounted) _c.forward();
+      if (mounted) _ctrl.forward();
     });
   }
 
   @override
   void dispose() {
-    _c.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 

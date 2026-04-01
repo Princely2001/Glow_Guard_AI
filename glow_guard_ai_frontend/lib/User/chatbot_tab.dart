@@ -67,12 +67,9 @@ class _ChatbotTabState extends State<ChatbotTab> {
     ],
   ];
 
-  // Android emulator: http://10.0.2.2:8081
-  // iOS simulator: http://127.0.0.1:8081
-  // Real device:    http://<your-pc-lan-ip>:8081
-  static const String _baseUrl = "http://192.168.1.7:8081";
+  static const String _baseUrl = "https://glowguard-backend.onrender.com";
 
-  // 👉 Initialize and auto-send the prompt if it exists
+  // Initialize and auto-send the prompt if it exists
   @override
   void initState() {
     super.initState();

@@ -72,7 +72,7 @@ class ChemicalTestPrivateService {
     required File after,
     Uint8List? mergedPreviewPng,
     String? appointmentId,
-    String? note,
+    required String expertNote, // ✅ Updated to required String expertNote
   }) async {
     final expert = _auth.currentUser;
     if (expert == null) {
@@ -123,12 +123,95 @@ class ChemicalTestPrivateService {
       "afterImagePath": afterRef.fullPath,
       "mergedImagePath": mergedRef.fullPath,
 
-      "note": note ?? "",
+      "expertNote": expertNote, // ✅ Using the expertNote parameter
       "createdAt": FieldValue.serverTimestamp(),
       "updatedAt": FieldValue.serverTimestamp(),
     });
 
     return recordId;
+  }
+
+  // ============================================================
+  // ✅ PROFESSIONAL TEST REQUEST (ADDED)
+  // ============================================================
+  Future<String> requestProfessionalTest({
+    required String requestedUserId,
+    required DateTime requestedDateTime,
+    required TestType testType,
+    required MlPrediction prediction,
+    required File before,
+    required File after,
+    Uint8List? mergedPreviewPng,
+    String? appointmentId,
+    required String expertNote,
+  }) async {
+    final expert = _auth.currentUser;
+    if (expert == null) {
+      throw Exception("You must be logged in as an expert to request a professional test.");
+    }
+
+    // ✅ Create a new collection for professional test requests
+    final docRef = _db.collection('professional_test_requests').doc();
+    final requestId = docRef.id;
+
+    // --- Storage References ---
+    final basePath = 'professional_test_requests/$requestId';
+    final beforeRef = _storage.ref('$basePath/before.jpg');
+    final afterRef = _storage.ref('$basePath/after.jpg');
+    final mergedRef = _storage.ref('$basePath/merged.png');
+
+    // --- Upload images ---
+    final beforeUrl = await _uploadFileSafe(beforeRef, before);
+    final afterUrl = await _uploadFileSafe(afterRef, after);
+
+    String mergedUrl = "";
+    if (mergedPreviewPng != null && mergedPreviewPng.isNotEmpty) {
+      mergedUrl = await _uploadDataSafe(mergedRef, mergedPreviewPng);
+    }
+
+    // --- Save to Firestore ---
+    await docRef.set({
+      "requestId": requestId,
+      "requestedUserId": requestedUserId,
+      "requestedDateTime": Timestamp.fromDate(requestedDateTime),
+
+      "requestingExpertId": expert.uid,
+      "requestingExpertEmail": expert.email ?? "",
+
+      "appointmentId": appointmentId ?? "",
+      "testType": testType.toString().split('.').last,
+
+      "predictionLabel": prediction.label,
+      "confidence": prediction.confidence,
+      "probs": prediction.probs,
+
+      "beforeImageUrl": beforeUrl,
+      "afterImageUrl": afterUrl,
+      "mergedImageUrl": mergedUrl,
+
+      "expertNote": expertNote,
+      "status": "pending_lab_review", // Indicates it's awaiting professional action
+
+      "createdAt": FieldValue.serverTimestamp(),
+      "updatedAt": FieldValue.serverTimestamp(),
+    });
+
+    return requestId;
+  }
+
+  // ============================================================
+  // ✅ PROFESSIONAL TEST REQUESTS STREAM (ALL EXPERTS)
+  // ============================================================
+
+  /// Stream ALL professional test requests for the lab submission dashboard
+  Stream<QuerySnapshot<Map<String, dynamic>>> watchAllProfessionalRequests({
+    int limit = 100,
+  }) {
+    return _db
+        .collection('professional_test_requests')
+        .orderBy('requestedDateTime', descending: true)
+        .limit(limit)
+        .snapshots();
   }
 
   // ============================================================

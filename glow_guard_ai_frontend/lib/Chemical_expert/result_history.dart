@@ -39,9 +39,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     super.dispose();
   }
 
-  // ----------------------------
   // Query builder
-  // ----------------------------
+
   Query<Map<String, dynamic>> _buildQuery() {
     final expert = _auth.currentUser;
 
@@ -322,10 +321,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ),
     );
   }
-
-  // ----------------------------
   // Firestore -> TestResult
-  // ----------------------------
+
   TestResult _docToTestResult(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? {};
 
@@ -409,18 +406,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 }
 
-// ----------------------------
+
 // Helper item class (avoid Dart record syntax issues)
-// ----------------------------
+
 class _HistoryItem {
   final TestResult result;
   final Map<String, dynamic> raw;
   const _HistoryItem({required this.result, required this.raw});
 }
 
-// ----------------------------
 // Modern UI widgets
-// ----------------------------
+
 class _SearchField extends StatelessWidget {
   final TextEditingController controller;
   final String hintText;

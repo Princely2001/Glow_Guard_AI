@@ -16,7 +16,7 @@ class _ExpertScheduleScreenState extends State<ExpertScheduleScreen> {
 
   bool _loading = false;
 
-  // ✅ Next 30 days (including today)
+  //  Next 30 days (including today)
   late final List<DateTime> _days = List.generate(30, (i) {
     final now = DateTime.now();
     return DateTime(now.year, now.month, now.day).add(Duration(days: i));
@@ -75,8 +75,8 @@ class _ExpertScheduleScreenState extends State<ExpertScheduleScreen> {
         date: _selectedDate,
         slots: _selectedSlots.toList()..sort(),
       );
-      _snack("Availability saved ✅");
-      // ✅ reload to ensure UI matches database
+      _snack("Availability saved ");
+      // reload to ensure UI matches database
       await _loadDay(_selectedDate);
     } catch (e) {
       _snack("Error: $e");
@@ -91,7 +91,7 @@ class _ExpertScheduleScreenState extends State<ExpertScheduleScreen> {
       await _service.clearAvailability(date: _selectedDate);
       if (!mounted) return;
       setState(() => _selectedSlots.clear());
-      _snack("Cleared ✅");
+      _snack("Cleared");
     } catch (e) {
       _snack("Error: $e");
     } finally {
@@ -135,7 +135,7 @@ class _ExpertScheduleScreenState extends State<ExpertScheduleScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
         children: [
-          // ✅ Header card
+          // Header card
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -209,7 +209,7 @@ class _ExpertScheduleScreenState extends State<ExpertScheduleScreen> {
           ),
           const SizedBox(height: 10),
 
-          // ✅ 30-day date chips
+          // 30-day date chips
           SizedBox(
             height: 46,
             child: ListView.separated(
@@ -258,7 +258,7 @@ class _ExpertScheduleScreenState extends State<ExpertScheduleScreen> {
           ),
           const SizedBox(height: 10),
 
-          // ✅ slots
+          // slots
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(

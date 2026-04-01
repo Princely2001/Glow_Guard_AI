@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// ✅ Import your new preview UI file
+//  Import your new preview UI file
 import 'credential_preview_sheet.dart';
 
 class AdminExpertDetailsScreen extends StatefulWidget {
@@ -50,7 +50,7 @@ class _AdminExpertDetailsScreenState extends State<AdminExpertDetailsScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(status == "active" ? "Expert approved ✅" : "Expert rejected ❌"),
+          content: Text(status == "active" ? "Expert approved " : "Expert rejected "),
         ),
       );
     } catch (e) {
@@ -101,7 +101,7 @@ class _AdminExpertDetailsScreenState extends State<AdminExpertDetailsScreen> {
                 _InfoRow(label: "Qualification", value: qualification),
                 _InfoRow(label: "Experience", value: "$experience years"),
                 _InfoRow(label: "Contact", value: contact),
-                // ✅ Display the Government Registration ID
+                //  Display the Government Registration ID
                 _InfoRow(label: "Gov. Reg. ID", value: govRegId),
               ],
             ),
