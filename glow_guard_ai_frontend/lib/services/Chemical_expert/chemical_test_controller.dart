@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -11,10 +12,11 @@ import '../../services/Chemical_expert/chemical_test_private_service.dart';
 
 class ChemicalTestController extends ChangeNotifier {
   final ImagePicker _picker = ImagePicker();
-  final ChemicalTestPrivateService _storageService = ChemicalTestPrivateService();
+  final ChemicalTestPrivateService _storageService =
+  ChemicalTestPrivateService();
   final IngredientClassifier _clf = IngredientClassifier();
 
-  // State Variables
+  // State
   TestType type = TestType.mercury;
   File? before;
   File? after;
@@ -30,68 +32,90 @@ class ChemicalTestController extends ChangeNotifier {
     _loadModel();
   }
 
-  // --- ML Initialization ---
+  // ---------------- ML Initialization ----------------
   Future<void> _loadModel() async {
     try {
       await _clf.load(threads: 2);
       modelReady = true;
-      notifyListeners();
     } catch (e) {
+      modelReady = false;
       debugPrint('Model load failed: $e');
       throw Exception('Failed to load ML model: $e');
+    } finally {
+      notifyListeners();
     }
   }
 
-  // --- Image Handling ---
+  // ---------------- UI State ----------------
   void setTestType(TestType newType) {
     type = newType;
     notifyListeners();
   }
 
+  // ---------------- Image Picking ----------------
   Future<void> pickBefore(ImageSource src) async {
-    final x = await _picker.pickImage(source: src);
+    final x = await _picker.pickImage(source: src, imageQuality: 85);
     if (x == null) return;
+
     before = File(x.path);
     await _updateMergedPreview();
     notifyListeners();
   }
 
   Future<void> pickAfter(ImageSource src) async {
-    final x = await _picker.pickImage(source: src);
+    final x = await _picker.pickImage(source: src, imageQuality: 85);
     if (x == null) return;
+
     after = File(x.path);
     await _updateMergedPreview();
     notifyListeners();
   }
 
   Future<void> _updateMergedPreview() async {
-    if (before == null || after == null) return;
+    if (before == null || after == null) {
+      mergedPreviewPng = null;
+      return;
+    }
+
     final job = ++_mergeJob;
+
     try {
-      final bytes = await _clf.buildMergedPreviewPng(before: before!, after: after!);
+      final bytes =
+      await _clf.buildMergedPreviewPng(before: before!, after: after!);
+
       if (job == _mergeJob) {
         mergedPreviewPng = bytes;
       }
     } catch (e) {
       debugPrint('Preview merge failed: $e');
+      mergedPreviewPng = null;
     }
   }
 
-  // --- ML Execution ---
+  // ---------------- ML Analyze ----------------
   Future<MlPrediction?> analyze() async {
-    if (before == null || after == null || !modelReady) return null;
+    if (before == null || after == null) {
+      throw Exception('Please select both before and after images.');
+    }
+
+    if (!modelReady) {
+      throw Exception('ML model is not ready yet.');
+    }
 
     busy = true;
     lastPrediction = null;
     notifyListeners();
 
     try {
-      final pred = await _clf.predictMergedBeforeAfter(before: before!, after: after!);
+      final pred = await _clf.predictMergedBeforeAfter(
+        before: before!,
+        after: after!,
+      );
 
-      // Save Local Result History
       final now = DateTime.now();
       final isSafe = pred.label.toLowerCase().trim() == 'safe';
-      final mappedOutcome = isSafe ? TestOutcome.notDetected : TestOutcome.detected;
+      final mappedOutcome =
+      isSafe ? TestOutcome.notDetected : TestOutcome.detected;
 
       final localResult = TestResult(
         id: now.millisecondsSinceEpoch.toString(),
@@ -99,44 +123,36 @@ class ChemicalTestController extends ChangeNotifier {
         type: type,
         outcome: mappedOutcome,
         confidence: (pred.confidence * 100).round(),
-        note: pred.isUnclear ? 'Model: ${pred.label} (Unclear)' : 'Model: ${pred.label}',
+        note: pred.isUnclear
+            ? 'Model: ${pred.label} (Unclear)'
+            : 'Model: ${pred.label}',
         beforePath: before!.path,
         afterPath: after!.path,
       );
-      addResult(localResult); // Global function from results_store.dart
+
+      addResult(localResult);
 
       lastPrediction = pred;
-      busy = false;
-      notifyListeners();
       return pred;
     } catch (e) {
+      throw Exception('Analysis failed: $e');
+    } finally {
       busy = false;
       notifyListeners();
-      throw Exception('Analysis failed: $e');
     }
   }
 
-  // --- Backend/Database Action ---
-  Future<String> saveToDatabase({required String userId, String? appointmentId, required String expertNote}) async {
-    if (before == null || after == null || lastPrediction == null) return "";
-    return await _storageService.saveChemicalTestPrivate(
-      requestedUserId: userId,
-      requestedDateTime: DateTime.now(),
-      testType: type,
-      prediction: lastPrediction!,
-      before: before!,
-      after: after!,
-      mergedPreviewPng: mergedPreviewPng,
-      appointmentId: appointmentId,
-      expertNote: expertNote, // Passing the expert note to the service
-    );
-  }
+  // ---------------- Save Result + Mark Appointment Completed ----------------
+  Future<String> saveToDatabase({
+    required String userId,
+    String? appointmentId,
+    required String expertNote,
+  }) async {
+    if (before == null || after == null || lastPrediction == null) {
+      throw Exception('Missing test data. Please run the chemical test first.');
+    }
 
-  Future<String> requestProfessionalTest({required String userId, String? appointmentId, required String expertNote}) async {
-    if (before == null || after == null || lastPrediction == null) return "";
-    // Note: You must create this `requestProfessionalTest` function inside your ChemicalTestPrivateService
-    // to handle saving to the professional test requests database.
-    return await _storageService.requestProfessionalTest(
+    final recordId = await _storageService.saveChemicalTestPrivate(
       requestedUserId: userId,
       requestedDateTime: DateTime.now(),
       testType: type,
@@ -147,6 +163,62 @@ class ChemicalTestController extends ChangeNotifier {
       appointmentId: appointmentId,
       expertNote: expertNote,
     );
+
+    // Mark related appointment as completed after successful save
+    if (appointmentId != null && appointmentId.trim().isNotEmpty) {
+      final now = FieldValue.serverTimestamp();
+
+      await FirebaseFirestore.instance
+          .collection('appointments')
+          .doc(appointmentId)
+          .update({
+        'status': 'completed',
+        'chemicalStatus': 'completed',
+        'testStatus': 'completed',
+        'chemicalTestDone': true,
+        'resultSaved': true,
+        'completedAt': now,
+        'updatedAt': now,
+        'chemicalTestResultId': recordId,
+      });
+    }
+
+    return recordId;
+  }
+
+  // ---------------- Request Professional Test ----------------
+  Future<String> requestProfessionalTest({
+    required String userId,
+    String? appointmentId,
+    required String expertNote,
+  }) async {
+    if (before == null || after == null || lastPrediction == null) {
+      throw Exception('Missing test data. Please run the chemical test first.');
+    }
+
+    final requestId = await _storageService.requestProfessionalTest(
+      requestedUserId: userId,
+      requestedDateTime: DateTime.now(),
+      testType: type,
+      prediction: lastPrediction!,
+      before: before!,
+      after: after!,
+      mergedPreviewPng: mergedPreviewPng,
+      appointmentId: appointmentId,
+      expertNote: expertNote,
+    );
+
+    if (appointmentId != null && appointmentId.trim().isNotEmpty) {
+      await FirebaseFirestore.instance
+          .collection('appointments')
+          .doc(appointmentId)
+          .update({
+        'chemicalStatus': 'requested_professional_test',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    return requestId;
   }
 
   @override

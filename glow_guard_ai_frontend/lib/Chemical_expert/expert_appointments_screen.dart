@@ -3,15 +3,64 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+
 import 'test_screen.dart';
 
-
-class ExpertAppointmentsScreen extends StatelessWidget {
+class ExpertAppointmentsScreen extends StatefulWidget {
   const ExpertAppointmentsScreen({super.key});
 
   @override
+  State<ExpertAppointmentsScreen> createState() =>
+      _ExpertAppointmentsScreenState();
+}
+
+class _ExpertAppointmentsScreenState extends State<ExpertAppointmentsScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  bool _isCompleted(Map<String, dynamic> data) {
+    final status = (data['status'] ?? '').toString().trim().toLowerCase();
+    final chemicalStatus =
+    (data['chemicalStatus'] ?? '').toString().trim().toLowerCase();
+    final testStatus =
+    (data['testStatus'] ?? '').toString().trim().toLowerCase();
+
+    return status == 'completed' ||
+        status == 'done' ||
+        status == 'test_completed' ||
+        chemicalStatus == 'completed' ||
+        chemicalStatus == 'done' ||
+        testStatus == 'completed' ||
+        testStatus == 'done' ||
+        data['chemicalTestDone'] == true ||
+        data['resultSaved'] == true;
+  }
+
+  bool _isCancelled(Map<String, dynamic> data) {
+    final status = (data['status'] ?? '').toString().trim().toLowerCase();
+    return status == 'cancelled' ||
+        status == 'canceled' ||
+        status == 'rejected';
+  }
+
+  bool _isBooked(Map<String, dynamic> data) {
+    return !_isCompleted(data) && !_isCancelled(data);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final expertId = FirebaseAuth.instance.currentUser?.uid;
 
     if (expertId == null) {
@@ -26,11 +75,42 @@ class ExpertAppointmentsScreen extends StatelessWidget {
         .where('expertId', isEqualTo: expertId);
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Appointments")),
+      appBar: AppBar(
+        title: const Text("Appointments"),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(52),
+          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: query.snapshots(),
+            builder: (context, snap) {
+              final docs = List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(
+                snap.data?.docs ?? const [],
+              );
+
+              final bookedCount =
+                  docs.where((d) => _isBooked(d.data())).length;
+              final completedCount =
+                  docs.where((d) => _isCompleted(d.data())).length;
+              final cancelledCount =
+                  docs.where((d) => _isCancelled(d.data())).length;
+
+              return TabBar(
+                controller: _tabController,
+                tabs: [
+                  Tab(text: 'Booked ($bookedCount)'),
+                  Tab(text: 'Completed ($completedCount)'),
+                  Tab(text: 'Cancelled ($cancelledCount)'),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: query.snapshots(),
         builder: (context, snap) {
-          if (snap.hasError) return Center(child: Text("Error: ${snap.error}"));
+          if (snap.hasError) {
+            return Center(child: Text("Error: ${snap.error}"));
+          }
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -39,7 +119,6 @@ class ExpertAppointmentsScreen extends StatelessWidget {
             snap.data?.docs ?? const [],
           );
 
-          // Sort locally
           docs.sort((a, b) {
             final ad = a.data();
             final bd = b.data();
@@ -52,153 +131,28 @@ class ExpertAppointmentsScreen extends StatelessWidget {
             return at.compareTo(bt);
           });
 
-          if (docs.isEmpty) {
-            return Center(
-              child: Text(
-                "No appointments yet.",
-                style: TextStyle(color: cs.onSurfaceVariant),
+          final bookedDocs = docs.where((d) => _isBooked(d.data())).toList();
+          final completedDocs =
+          docs.where((d) => _isCompleted(d.data())).toList();
+          final cancelledDocs =
+          docs.where((d) => _isCancelled(d.data())).toList();
+
+          return TabBarView(
+            controller: _tabController,
+            children: [
+              _AppointmentsList(
+                docs: bookedDocs,
+                emptyText: "No booked appointments yet.",
               ),
-            );
-          }
-
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: docs.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, i) {
-              final d = docs[i];
-              final data = d.data();
-
-              final userId = (data['userId'] ?? '').toString();
-              final dateId = (data['dateId'] ?? '').toString();
-              final slot = (data['slot'] ?? '').toString();
-              final status = (data['status'] ?? 'booked').toString();
-
-              final isBooked = status.toLowerCase() == "booked";
-
-              return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                future: FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(userId)
-                    .get(),
-                builder: (context, userSnap) {
-                  final userData = userSnap.data?.data() ?? {};
-                  final userName = (userData['name'] ?? 'User').toString();
-                  final userEmail = (userData['email'] ?? '').toString();
-                  final userPhone = (userData['phone'] ?? '').toString();
-
-                  return InkWell(
-                    borderRadius: BorderRadius.circular(18),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ExpertAppointmentDetailsScreen(
-                            appointmentId: d.id,
-                            appointmentData: data,
-                            userName: userName,
-                            userEmail: userEmail,
-                            userPhone: userPhone,
-                          ),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: cs.surfaceContainerHighest.withOpacity(0.82),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: cs.outlineVariant),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            height: 44,
-                            width: 44,
-                            decoration: BoxDecoration(
-                              color: (isBooked ? cs.primary : cs.outlineVariant)
-                                  .withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: (isBooked
-                                    ? cs.primary
-                                    : cs.outlineVariant)
-                                    .withOpacity(0.25),
-                              ),
-                            ),
-                            child: Icon(
-                              isBooked
-                                  ? Icons.event_available
-                                  : Icons.event_busy,
-                              color:
-                              isBooked ? cs.primary : cs.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  (dateId.isEmpty || slot.isEmpty)
-                                      ? "Appointment"
-                                      : "$dateId • $slot",
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  userSnap.connectionState ==
-                                      ConnectionState.waiting
-                                      ? "Loading user..."
-                                      : userName,
-                                  style: TextStyle(
-                                    color: cs.onSurface,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  userEmail.isEmpty ? "No email" : userEmail,
-                                  style:
-                                  TextStyle(color: cs.onSurfaceVariant),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: (isBooked ? cs.primary : cs.onSurfaceVariant)
-                                  .withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color: (isBooked
-                                    ? cs.primary
-                                    : cs.onSurfaceVariant)
-                                    .withOpacity(0.25),
-                              ),
-                            ),
-                            child: Text(
-                              status,
-                              style: TextStyle(
-                                color: isBooked
-                                    ? cs.primary
-                                    : cs.onSurfaceVariant,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              );
-            },
+              _AppointmentsList(
+                docs: completedDocs,
+                emptyText: "No completed appointments yet.",
+              ),
+              _AppointmentsList(
+                docs: cancelledDocs,
+                emptyText: "No cancelled appointments yet.",
+              ),
+            ],
           );
         },
       ),
@@ -206,11 +160,163 @@ class ExpertAppointmentsScreen extends StatelessWidget {
   }
 }
 
-// Details screen: appointment + user contact + "Do Chemical Test" button
+class _AppointmentsList extends StatelessWidget {
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs;
+  final String emptyText;
+
+  const _AppointmentsList({
+    required this.docs,
+    required this.emptyText,
+  });
+
+  bool _isCompleted(Map<String, dynamic> data) {
+    final status = (data['status'] ?? '').toString().trim().toLowerCase();
+    final chemicalStatus =
+    (data['chemicalStatus'] ?? '').toString().trim().toLowerCase();
+    final testStatus =
+    (data['testStatus'] ?? '').toString().trim().toLowerCase();
+
+    return status == 'completed' ||
+        status == 'done' ||
+        status == 'test_completed' ||
+        chemicalStatus == 'completed' ||
+        chemicalStatus == 'done' ||
+        testStatus == 'completed' ||
+        testStatus == 'done' ||
+        data['chemicalTestDone'] == true ||
+        data['resultSaved'] == true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    if (docs.isEmpty) {
+      return Center(
+        child: Text(
+          emptyText,
+          style: TextStyle(color: cs.onSurfaceVariant),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: docs.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (context, i) {
+        final d = docs[i];
+        final data = d.data();
+
+        final userId = (data['userId'] ?? '').toString();
+        final dateId = (data['dateId'] ?? '').toString();
+        final slot = (data['slot'] ?? '').toString();
+        final status = (data['status'] ?? 'booked').toString();
+
+        final isCompleted = _isCompleted(data);
+
+        return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          future: FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .get(),
+          builder: (context, userSnap) {
+            final userData = userSnap.data?.data() ?? {};
+            final userName = (userData['name'] ?? 'User').toString();
+            final userEmail = (userData['email'] ?? '').toString();
+            final userPhone = (userData['phone'] ?? '').toString();
+
+            return InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ExpertAppointmentDetailsScreen(
+                      appointmentId: d.id,
+                      appointmentData: data,
+                      userName: userName,
+                      userEmail: userEmail,
+                      userPhone: userPhone,
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerHighest.withOpacity(0.82),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: cs.outlineVariant),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      height: 44,
+                      width: 44,
+                      decoration: BoxDecoration(
+                        color: (isCompleted ? Colors.green : cs.primary)
+                            .withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: (isCompleted ? Colors.green : cs.primary)
+                              .withOpacity(0.25),
+                        ),
+                      ),
+                      child: Icon(
+                        isCompleted
+                            ? Icons.check_circle_outline
+                            : Icons.event_available,
+                        color: isCompleted ? Colors.green : cs.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            (dateId.isEmpty || slot.isEmpty)
+                                ? "Appointment"
+                                : "$dateId • $slot",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            userSnap.connectionState == ConnectionState.waiting
+                                ? "Loading user..."
+                                : userName,
+                            style: TextStyle(
+                              color: cs.onSurface,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            userEmail.isEmpty ? "No email" : userEmail,
+                            style: TextStyle(color: cs.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    StatusChip(status: isCompleted ? "completed" : status),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
 class ExpertAppointmentDetailsScreen extends StatefulWidget {
   final String appointmentId;
   final Map<String, dynamic> appointmentData;
-
   final String userName;
   final String userEmail;
   final String userPhone;
@@ -234,8 +340,18 @@ class _ExpertAppointmentDetailsScreenState
   bool _busy = false;
   String? _error;
 
+  bool get _isCompleted {
+    final status =
+    (widget.appointmentData['status'] ?? '').toString().trim().toLowerCase();
+    return status == 'completed' ||
+        status == 'done' ||
+        status == 'test_completed' ||
+        widget.appointmentData['chemicalTestDone'] == true ||
+        widget.appointmentData['resultSaved'] == true;
+  }
+
   Future<void> _goToStartTestScreen() async {
-    if (_busy) return;
+    if (_busy || _isCompleted) return;
 
     setState(() {
       _busy = true;
@@ -246,7 +362,6 @@ class _ExpertAppointmentDetailsScreenState
       final requestedUserId =
       (widget.appointmentData['userId'] ?? '').toString();
 
-      // ✅ Correct navigation: StartTestScreen (NOT TestScreen)
       await Navigator.push(
         context,
         MaterialPageRoute(
@@ -269,7 +384,9 @@ class _ExpertAppointmentDetailsScreenState
 
     final dateId = (widget.appointmentData['dateId'] ?? '').toString();
     final slot = (widget.appointmentData['slot'] ?? '').toString();
-    final status = (widget.appointmentData['status'] ?? 'booked').toString();
+    final status = _isCompleted
+        ? 'completed'
+        : (widget.appointmentData['status'] ?? 'booked').toString();
     final specialty =
     (widget.appointmentData['expertSpecialty'] ?? '').toString();
 
@@ -279,7 +396,7 @@ class _ExpertAppointmentDetailsScreenState
     }
 
     final dateText = (date != null)
-        ? DateFormat("EEE, MMM d, yyyy").format(date!)
+        ? DateFormat("EEE, MMM d, yyyy").format(date)
         : (dateId.isEmpty ? "-" : dateId);
 
     return Scaffold(
@@ -290,7 +407,6 @@ class _ExpertAppointmentDetailsScreenState
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
-          // ✅ Header card
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -334,9 +450,11 @@ class _ExpertAppointmentDetailsScreenState
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    Icon(Icons.info_outline,
-                        size: 18,
-                        color: cs.onPrimaryContainer.withOpacity(0.85)),
+                    Icon(
+                      Icons.info_outline,
+                      size: 18,
+                      color: cs.onPrimaryContainer.withOpacity(0.85),
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -353,9 +471,11 @@ class _ExpertAppointmentDetailsScreenState
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      Icon(Icons.science_outlined,
-                          size: 18,
-                          color: cs.onPrimaryContainer.withOpacity(0.85)),
+                      Icon(
+                        Icons.science_outlined,
+                        size: 18,
+                        color: cs.onPrimaryContainer.withOpacity(0.85),
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -374,10 +494,7 @@ class _ExpertAppointmentDetailsScreenState
               ],
             ),
           ),
-
           const SizedBox(height: 14),
-
-          // Contact section
           SectionCard(
             title: "User Contact",
             icon: Icons.person_outline,
@@ -412,10 +529,7 @@ class _ExpertAppointmentDetailsScreenState
               ],
             ),
           ),
-
           const SizedBox(height: 14),
-
-          // Button → StartTestScreen
           SectionCard(
             title: "Chemical Test",
             icon: Icons.science_outlined,
@@ -423,15 +537,23 @@ class _ExpertAppointmentDetailsScreenState
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 FilledButton.icon(
-                  onPressed: _busy ? null : _goToStartTestScreen,
+                  onPressed: (_busy || _isCompleted) ? null : _goToStartTestScreen,
                   icon: _busy
                       ? const SizedBox(
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                      : const Icon(Icons.biotech_rounded),
-                  label: Text(_busy ? "Opening..." : "Do Chemical Test"),
+                      : Icon(
+                    _isCompleted
+                        ? Icons.check_circle_rounded
+                        : Icons.biotech_rounded,
+                  ),
+                  label: Text(
+                    _isCompleted
+                        ? "Chemical Test Completed"
+                        : (_busy ? "Opening..." : "Do Chemical Test"),
+                  ),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 10),
@@ -439,7 +561,9 @@ class _ExpertAppointmentDetailsScreenState
                 ],
                 const SizedBox(height: 6),
                 Text(
-                  "This will open the test screen to upload before/after images, run the AI model, then show the result page.",
+                  _isCompleted
+                      ? "This appointment has already been completed and saved."
+                      : "This will open the test screen to upload before/after images, run the AI model, then show the result page.",
                   style: TextStyle(
                     color: cs.onSurfaceVariant,
                     fontWeight: FontWeight.w600,
@@ -455,9 +579,6 @@ class _ExpertAppointmentDetailsScreenState
   }
 }
 
-// -----------------------------------------------------------------------------
-// Shared UI components
-// -----------------------------------------------------------------------------
 class SectionCard extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -586,7 +707,11 @@ class StatusChip extends StatelessWidget {
     Color fg;
     IconData icon;
 
-    if (s == 'accepted' || s == 'confirmed') {
+    if (s == 'completed' || s == 'done' || s == 'test_completed') {
+      bg = Colors.green.withOpacity(0.14);
+      fg = Colors.green.shade700;
+      icon = Icons.check_circle_outline;
+    } else if (s == 'accepted' || s == 'confirmed' || s == 'booked') {
       bg = cs.tertiaryContainer;
       fg = cs.onTertiaryContainer;
       icon = Icons.verified_outlined;

@@ -140,6 +140,7 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
   Future<void> _handleSave() async {
     if (_saving) return;
     setState(() => _saving = true);
+
     try {
       String id = '';
       if (widget.onSaveToDatabase != null) {
@@ -147,8 +148,16 @@ class _PredictionResultScreenState extends State<PredictionResultScreen>
       } else {
         await Future.delayed(const Duration(milliseconds: 900));
       }
+
       if (!mounted) return;
+
       _showSnack(id.isEmpty ? 'Test result saved.' : 'Saved ✅  Record: $id');
+
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (!mounted) return;
+      Navigator.pop(context);
+      Navigator.pop(context);
     } catch (e) {
       if (mounted) _showSnack('Failed to save: $e', isError: true);
     } finally {
@@ -662,7 +671,7 @@ class _MergedPreviewCard extends StatelessWidget {
 }
 
 
-//  BEFORE / AFTER PHOTO ROW  — crisp, full-colour, clearly labelled
+//  BEFORE / AFTER PHOTO ROW
 
 class _BeforeAfterRow extends StatelessWidget {
   final dynamic before;
